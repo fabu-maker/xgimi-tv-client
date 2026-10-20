@@ -1,7 +1,6 @@
 package dev.projectortv.app
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.View
@@ -17,7 +16,7 @@ import org.json.JSONTokener
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
+import java.io.FileInputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -65,12 +64,15 @@ class TvIntegrationTest {
         instrument.waitForIdleSync()
     }
     private fun screenshot(name: String) {
-        val path=File(instrument.targetContext.getExternalFilesDir(null),"screenshots").apply {mkdirs()}
-        instrument.uiAutomation.takeScreenshot().useBitmap {bitmap ->
-            File(path,"$name.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+        // UTP uninstalls the target APK at the end. Keep evidence in the test shell's directory.
+        require(name.matches(Regex("[a-z-]+")))
+        instrument.uiAutomation.executeShellCommand("mkdir -p /data/local/tmp/projector-tv-evidence").use {
+            FileInputStream(it.fileDescriptor).use { stream -> stream.readBytes() }
+        }
+        instrument.uiAutomation.executeShellCommand("screencap -p /data/local/tmp/projector-tv-evidence/$name.png").use {
+            FileInputStream(it.fileDescriptor).use { stream -> stream.readBytes() }
         }
     }
-    private inline fun Bitmap.useBitmap(block: (Bitmap)->Unit) {try {block(this)} finally {recycle()}}
 
     @Test fun extractsOnlySiteTitlesWithoutReadingFormValues() {
         launch().use {scenario ->
