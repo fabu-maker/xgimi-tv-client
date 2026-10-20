@@ -1,4 +1,4 @@
-name: Create short APK download link
+name: Verify short APK download link
 on:
   push:
     paths:
@@ -7,31 +7,23 @@ on:
 permissions:
   contents: read
 jobs:
-  shorten:
+  verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Create and verify short APK link
-        env:
-          APK_URL: https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.1.0/projektor-tv.apk
+      - name: Verify short HTTPS redirect to released APK
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL "https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.1.0" | python3 -c 'import json,sys; a=json.load(sys.stdin)["assets"]; assert any(x["name"]=="projektor-tv.apk" and x["state"]=="uploaded" for x in a)'
-          response="$(curl -sS --max-time 20 --request POST 'https://spoo.me/' --header 'Accept: application/json' --data-urlencode "url=${APK_URL}" --data-urlencode 'alias=xgimitv01' --data-urlencode 'block-bots=false' || true)"
-          echo "Spoo API response: ${response}"
-          if short="$(printf '%s' "${response}" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("original_url")=="https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.1.0/projektor-tv.apk"; print(d["short_url"])' 2>/dev/null)"; then
-            echo "Candidate URL: ${short}"
-            location="$(curl -sSI --max-time 20 "${short}" | tr -d '\r' | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//' || true)"
-            echo "HEAD redirect: ${location}"
-            if [ "${location}" = "${APK_URL}" ]; then
-              echo "SHORT_APK_URL=${short}" >> "${GITHUB_STEP_SUMMARY}"
-              echo "::notice title=Short APK link::${short}"
-              exit 0
-            fi
+          APK_URL='https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.1.0/projektor-tv.apk'
+          SHORT_URL='https://spoo.me/xgimitv01'
+          curl -fsSL 'https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.1.0' | python3 -c 'import json,sys; a=json.load(sys.stdin)["assets"]; assert any(x["name"]=="projektor-tv.apk" and x["state"]=="uploaded" for x in a)'
+          curl -sS -D headers -o /dev/null --max-time 25 "$SHORT_URL"
+          cat headers
+          location="$(tr -d '\r' < headers | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//' || true)"
+          echo "Redirect target: ${location}"
+          if [ "${location}" != "${APK_URL}" ]; then
+            echo 'Short HTTPS URL did not redirect to the APK' >&2
+            exit 1
           fi
-          echo 'Fallback to verified URLVanish link.'
-          short='https://urlvanish.com/254f8261'
-          expanded="$(curl -fsSL --get --data-urlencode 'format=simple' --data-urlencode "url=${short}" 'https://urlvanish.com/api/expand')"
-          [ "${expanded}" = "${APK_URL}" ] || exit 1
-          echo "SHORT_APK_URL=${short}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "::notice title=Short APK link::${short}"
+          echo "SHORT_APK_URL=${SHORT_URL}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice title=Verified short APK URL::${SHORT_URL}"
