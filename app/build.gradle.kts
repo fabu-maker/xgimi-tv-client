@@ -3,11 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Stable release signing is injected only by CI after decrypting the keystore.
 val signingPassword = providers.environmentVariable("XGIMI_SIGNING_PASSPHRASE").orNull
 val signingKeystore = rootProject.file("build/signing/release.p12")
 
 android {
+    namespace = "dev.projectortv.app"
+    compileSdk = 35
+
     signingConfigs {
         if (!signingPassword.isNullOrBlank() && signingKeystore.isFile) {
             create("secureRelease") {
@@ -19,18 +21,15 @@ android {
             }
         }
     }
-    namespace = "dev.projectortv.app"
-    compileSdk = 35
 
     defaultConfig {
         applicationId = "dev.projectortv.client"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0-native-preview"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -41,7 +40,6 @@ android {
         }
         debug { isDebuggable = true }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -52,7 +50,9 @@ android {
 }
 
 dependencies {
+    implementation("org.jsoup:jsoup:1.18.3")
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }

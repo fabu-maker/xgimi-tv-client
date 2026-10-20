@@ -1,0 +1,17 @@
+name: Public HTML catalogue probe
+on:
+  push:
+    branches: [native-v2]
+    paths:
+      - 'tools/site_probe.py'
+      - '.github/workflows/catalog-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect the public HTML without stream extraction
+        run: python3 tools/site_probe.py

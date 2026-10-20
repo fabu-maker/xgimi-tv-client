@@ -1,8 +1,8 @@
-name: Sign and publish Android TV APK
+name: Sign and publish native Android TV preview
 
 on:
   push:
-    branches: [main, master]
+    branches: [native-v2]
     paths:
       - 'app/**'
       - 'build.gradle.kts'
@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 40
     env:
       XGIMI_SIGNING_PASSPHRASE: ${{ secrets.XGIMI_SIGNING_PASSPHRASE }}
-      RELEASE_TAG: v0.1.0
+      RELEASE_TAG: v0.2.0-native-preview
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -53,6 +53,8 @@ jobs:
           keytool -list -storetype PKCS12 -keystore build/signing/release.p12 \
             -storepass "$XGIMI_SIGNING_PASSPHRASE" -alias projector-release >/dev/null
           echo 'Signing key decrypted and validated'
+      - name: Verify native-only architecture
+        run: python3 tools/native_static_check.py
       - name: Run unit tests and Android lint
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintRelease
       - name: Build signed release
@@ -64,8 +66,8 @@ jobs:
           APK='app/build/outputs/apk/release/app-release.apk'
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
           test -s "$APK"
-          cp "$APK" projektor-tv.apk
-          sha256sum projektor-tv.apk > projektor-tv.apk.sha256
+          cp "$APK" projektor-tv-native.apk
+          sha256sum projektor-tv-native.apk > projektor-tv-native.apk.sha256
       - name: Publish immutable first-release APK on GitHub HTTPS
         env:
           GH_TOKEN: ${{ github.token }}
@@ -77,8 +79,8 @@ jobs:
             exit 1
           fi
           gh release create "$RELEASE_TAG" \
-            projektor-tv.apk#projektor-tv.apk \
-            projektor-tv.apk.sha256#projektor-tv.apk.sha256 \
+            projektor-tv-native.apk#projektor-tv-native.apk \
+            projektor-tv-native.apk.sha256#projektor-tv-native.apk.sha256 \
             --target "$GITHUB_SHA" \
-            --title "Projektor TV 0.1.0 – unverified TV pilot" \
-            --notes "Android TV 9+ Testversion. Signatur verifiziert im CI. Keine Geräte- oder Player-Kompatibilität zugesichert. Für Installation über Downloader die APK aus den Release-Assets nutzen."
+            --title "Projektor TV 0.2.0 – native TV preview" \
+            --notes "Native Android TV prototype. Public website catalogue parsing only; BingeBang media playback is unavailable pending documented rights and a supported stream source. Demo playback is available in Info. Xgimi device performance and Play Protect classification remain unverified."

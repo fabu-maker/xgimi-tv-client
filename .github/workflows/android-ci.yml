@@ -23,6 +23,8 @@ jobs:
           gradle-version: '8.9'
       - name: Android SDK components
         run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Verify native architecture
+        run: python3 tools/native_static_check.py
       - name: Unit tests and signed debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
       - name: SHA-256
