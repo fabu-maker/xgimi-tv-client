@@ -83,7 +83,7 @@ class SitePageBridge(
                     if (reject) onProblem("Externer Seitenwechsel blockiert")
                     return reject
                 }
-                @Suppress("DEPRECATION")
+                @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
                 override fun shouldOverrideUrlLoading(view: WebView, url: String) = !allowed(url)
                 override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                     generation++
@@ -180,6 +180,7 @@ class SitePageBridge(
         web?.apply {
             layoutParams = FrameLayout.LayoutParams(-1,-1).apply {topMargin = if(show) toolbarHeight else 0}
             visibility = if(show) View.VISIBLE else View.INVISIBLE
+            if(show && resumed) onResume() else if(!show) onPause()
         }
     }
     fun focusContent() {

@@ -15,7 +15,9 @@ import androidx.leanback.app.RowsSupportFragment
 import androidx.leanback.widget.ArrayObjectAdapter
 import androidx.leanback.widget.HeaderItem
 import androidx.leanback.widget.ListRow
+import androidx.leanback.widget.ListRowPresenter
 import androidx.leanback.widget.OnItemViewClickedListener
+import androidx.leanback.widget.OnItemViewSelectedListener
 import dev.projectortv.tv.PosterLoader
 import dev.projectortv.tv.TvCardPresenter
 import dev.projectortv.tv.TvListRowPresenter
@@ -50,6 +52,7 @@ open class TvFacadeActivity : FragmentActivity() {
     private var returning = false
     private var firstMenu: Button? = null
     private var selectedRow = 0
+    private var selectedTitleUrl: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -141,6 +144,12 @@ open class TvFacadeActivity : FragmentActivity() {
         }
         rowAdapter=ArrayObjectAdapter(TvListRowPresenter())
         rows.adapter=rowAdapter
+        rows.onItemViewSelectedListener=OnItemViewSelectedListener {_,item,_,_ ->
+            if(item is SitePageBridge.SiteTitle) {
+                selectedRow=rows.selectedPosition
+                selectedTitleUrl=item.url
+            }
+        }
         rows.onItemViewClickedListener=OnItemViewClickedListener {_,item,_,_ ->
             if(item is SitePageBridge.SiteTitle) {selectedRow=rows.selectedPosition;showDetail(item)}
         }
@@ -161,19 +170,26 @@ open class TvFacadeActivity : FragmentActivity() {
         root.addView(toolbar,FrameLayout.LayoutParams(-1,d(80)))
     }
     private fun openSection(path: String,name: String) {
-        activePath=path;heading.text=name;titles=emptyList();detail=null;selectedRow=0
+        activePath=path;heading.text=name;titles=emptyList();detail=null;selectedRow=0;selectedTitleUrl=null
         rowAdapter.clear();status.text="Lade BingeBang …";showNative();page.navigate(path)
     }
     private fun renderRows() {
         if(detail!=null) return
         val hadFocus=rowsHost.hasFocus()
+        val restoreUrl=selectedTitleUrl
+        val restoreRow=selectedRow
+        val groups=titles.groupBy {it.group.ifBlank {if(it.kind=="Film") "Filme" else "Serien"}}.entries.toList()
         rowAdapter.clear()
-        titles.groupBy {it.group.ifBlank {if(it.kind=="Film") "Filme" else "Serien"}}.entries.forEachIndexed {i,group ->
+        groups.forEachIndexed {i,group ->
             val cards=ArrayObjectAdapter(TvCardPresenter(posters))
             group.value.forEach {cards.add(it)}
             rowAdapter.add(ListRow(HeaderItem(i.toLong(),group.key),cards))
         }
-        if(rowAdapter.size()>0) rows.setSelectedPosition(selectedRow.coerceIn(0,rowAdapter.size()-1),false)
+        if(groups.isNotEmpty()) {
+            val row=restoreRow.coerceIn(0,groups.lastIndex)
+            val column=groups[row].value.indexOfFirst {it.url==restoreUrl}.coerceAtLeast(0)
+            rows.setSelectedPosition(row,false,ListRowPresenter.SelectItemViewHolderTask(column).apply {isSmoothScroll=false})
+        }
         if(hadFocus) rowsHost.requestFocus()
     }
     private fun showDetail(item: SitePageBridge.SiteTitle) {

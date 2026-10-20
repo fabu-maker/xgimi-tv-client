@@ -47,6 +47,16 @@ class TvIntegrationTest {
     }
     private fun views(view: View): List<View> = listOf(view) +
         if(view is ViewGroup) (0 until view.childCount).flatMap {views(view.getChildAt(it))} else emptyList()
+    private fun awaitView(scenario: ActivityScenario<OfflineTvActivity>,condition: (View)->Boolean) {
+        val deadline=SystemClock.elapsedRealtime()+10000
+        while(SystemClock.elapsedRealtime()<deadline) {
+            var found=false
+            scenario.onActivity {found=views(it.window.decorView).any(condition)}
+            if(found) {instrument.waitForIdleSync();return}
+            SystemClock.sleep(100)
+        }
+        fail("Expected visible UI state was not reached")
+    }
     private fun click(scenario: ActivityScenario<OfflineTvActivity>,label: String) {
         scenario.onActivity {activity ->
             val target=views(activity.window.decorView).filterIsInstance<Button>().first {it.text.toString()==label}
@@ -105,6 +115,7 @@ class TvIntegrationTest {
             val snapshot=JSONObject(JSONTokener(eval(scenario,"window.__projectorTV.snapshot()")).nextValue() as String)
             assertTrue(snapshot.getBoolean("blocked"))
             assertEquals(0,snapshot.getJSONArray("titles").length())
+            awaitView(scenario) {it is TextView && it.isShown && it.text.contains("Browserprüfung")}
             scenario.onActivity {activity ->
                 assertEquals(View.VISIBLE,activity.findViewById<WebView>(R.id.site_webview).visibility)
                 assertTrue(views(activity.window.decorView).filterIsInstance<TextView>()
@@ -120,18 +131,24 @@ class TvIntegrationTest {
               <a aria-label="Fixture A" href="/movie/watch/fixture-a">Fixture A</a>
               <a aria-label="Fixture B" href="/movie/watch/fixture-b">Fixture B</a>
               </section></body></html>""")
+            awaitView(scenario) {it is TextView && it.isShown && it.text.toString()=="Fixture B"}
             scenario.onActivity {it.findViewById<View>(R.id.catalog_rows).requestFocus()}
             instrument.waitForIdleSync()
             instrument.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_RIGHT)
             instrument.waitForIdleSync()
             instrument.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
             instrument.waitForIdleSync()
+            awaitView(scenario) {it is Button && it.isShown && it.text.toString()=="Ansehen"}
             scenario.onActivity {activity -> assertTrue(views(activity.window.decorView).filterIsInstance<Button>()
                 .any {it.isShown && it.text.toString()=="Ansehen"})}
             instrument.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
             instrument.waitForIdleSync()
             scenario.onActivity {assertEquals(View.VISIBLE,it.findViewById<View>(R.id.catalog_rows).visibility)}
             screenshot("native-cards-offline")
+            instrument.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER)
+            awaitView(scenario) {it is Button && it.isShown && it.text.toString()=="Ansehen"}
+            scenario.onActivity {activity -> assertTrue(views(activity.window.decorView).filterIsInstance<TextView>()
+                .any {it.isShown && it.text.toString()=="Fixture B"})}
         }
     }
 }

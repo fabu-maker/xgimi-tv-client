@@ -91,7 +91,7 @@ Dieser Befund beweist eine Sperre für den verwendeten Cloud-Browser. Er beweist
 |---|---|---|
 | Vollständiger SmartTube-Fork | YouTube-Kopplung in Basis-Presenter, Suche, Anmeldung und Medienauflösung muss ersetzt werden | Quellcodeprüfung erfolgt; kein BingeBang-Dienstvertrag verifiziert |
 | Native Oberfläche mit eigener HTTP-API | Nachgewiesene Requests und authentifizierter Sitzungsvertrag erforderlich | Nicht nachgewiesen |
-| Reine angepasste WebView | Originalwebsite besitzt Navigation und Player; D-Pad, TV-WebView und Zugriff müssen funktionieren | Laufzeittest an Website-Zugriff gescheitert |
+| Reine angepasste WebView | Originalwebsite besitzt Navigation und Player; D-Pad, TV-WebView und Zugriff müssen funktionieren | Desktop-Playerprüfung blockiert; Live-WebView auf Android TV noch nicht geprüft |
 | Native Leanback-Reihen über einer WebView-Sitzung | Titel aus derselben Originalseite; Konto und Player verbleiben dort | Implementiert; Live-Nachweis weiterhin offen |
 
 Die hybride Integration wird als überprüfbarer Entwicklungsstand weitergeführt. Ohne erfolgreiche Wiedergabeprüfung kann keine Variante als funktionierendes Endergebnis gelten.

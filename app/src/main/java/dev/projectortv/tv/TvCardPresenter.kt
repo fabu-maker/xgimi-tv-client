@@ -29,18 +29,18 @@ class TvCardPresenter(private val posters: PosterLoader) : Presenter() {
         return ViewHolder(card)
     }
 
-    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any) {
+    override fun onBindViewHolder(viewHolder: ViewHolder, item: Any?) {
         val title = item as SitePageBridge.SiteTitle
         val card = viewHolder.view as ImageCardView
         card.titleText = title.name
         card.contentText = title.kind
         card.contentDescription = "${title.kind} ${title.name}"
-        posters.into(card.mainImageView, title.poster)
+        card.mainImageView?.let { posters.into(it, title.poster) }
     }
 
     override fun onUnbindViewHolder(viewHolder: ViewHolder) {
         val card = viewHolder.view as ImageCardView
-        card.mainImageView.tag = null // reject a late download for a recycled card
+        card.mainImageView?.tag = null // reject a late download for a recycled card
         card.badgeImage = null
         card.mainImage = null
     }
