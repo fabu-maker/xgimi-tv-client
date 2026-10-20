@@ -72,6 +72,7 @@ class SitePageBridge(
     private var full: View? = null
     private var callback: WebChromeClient.CustomViewCallback? = null
     private var active = true
+    private var pendingPlay: String? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     fun initialize() {
@@ -110,6 +111,10 @@ class SitePageBridge(
                     CookieManager.getInstance().flush()
                     onLocation(url)
                     installTvFocusStyling()
+                    if (pendingPlay == url && allowedTitle(url)) {
+                        pendingPlay = null
+                        view.postDelayed({ if(active && web===view && view.url==url) pressSitePlay() }, 1400)
+                    }
                     view.postDelayed({ if(active && web===view && view.url==url) extract() }, 650)
                     view.postDelayed({ if(active && web===view && view.url==url) extract() }, 2700)
                 }
@@ -139,6 +144,28 @@ class SitePageBridge(
         host.addView(view, 0, FrameLayout.LayoutParams(-1, -1))
         view.visibility = View.INVISIBLE
         view.loadUrl(ORIGIN + "/")
+    }
+
+    /** One TV remote click triggers the original visible Play button; site controls the session. */
+    fun playTitle(url:String) {
+        if (!allowedTitle(url)) { onProblem("Filmseite nicht zugelassen"); return }
+        pendingPlay=url
+        navigate(url)
+    }
+    private fun pressSitePlay() {
+        web?.evaluateJavascript("""
+(function(){
+ var items=Array.from(document.querySelectorAll('button,a,[role=button]'));
+ var play=items.find(function(el) {
+   var name=((el.getAttribute('aria-label')||'')+' '+(el.textContent||'')).trim();
+   return /^play$|^▶?\s*play$/i.test(name) && el.getClientRects().length>0;
+ });
+ if(play){play.click();return 'clicked'}
+ return 'manual';
+})()
+        """.trimIndent()) { res ->
+            if(res.contains("manual")) onProblem("Bitte Play auf der Titelseite auswählen")
+        }
     }
 
     fun navigate(path: String) {
