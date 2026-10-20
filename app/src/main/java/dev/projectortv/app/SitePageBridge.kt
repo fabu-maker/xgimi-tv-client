@@ -174,7 +174,7 @@ class SitePageBridge(
  return 'unavailable';
 })()
             """.trimIndent()) { result ->
-                if (result=="\\"unavailable\\"") onProblem("Bitte die Website-Suche über das Suchsymbol öffnen")
+                if (result.contains("unavailable")) onProblem("Bitte die Website-Suche über das Suchsymbol öffnen")
             }
         },1200)
     }
