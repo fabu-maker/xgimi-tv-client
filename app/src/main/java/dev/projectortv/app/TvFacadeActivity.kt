@@ -78,7 +78,7 @@ class TvFacadeActivity : Activity() {
         background=bg(false)
         setOnFocusChangeListener { view, selected ->
             view.background=bg(selected)
-            (view as Button).setTextColor(if(selected)background else ink)
+            (view as Button).setTextColor(if(selected)this@TvFacadeActivity.background else ink)
             view.scaleX=if(selected)1.02f else 1f
             view.scaleY=if(selected)1.02f else 1f
         }
@@ -203,7 +203,6 @@ class TvFacadeActivity : Activity() {
     }
 
     private fun showDetail(item:SitePageBridge.SiteTitle) {
-        currentTitles=currentTitles // keep site result, not a shadow library
         nativeMode=true
         buildNative()
         val area=contentHost ?: return
