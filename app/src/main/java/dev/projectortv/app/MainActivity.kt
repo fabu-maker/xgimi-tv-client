@@ -20,6 +20,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import dev.projectortv.account.AccountSession
+import dev.projectortv.account.AccountRoutes
 import dev.projectortv.catalog.BingeBangParser
 import dev.projectortv.catalog.CatalogRepository
 import dev.projectortv.catalog.CatalogShelf
@@ -53,6 +55,7 @@ class MainActivity : Activity() {
     private var screen = "home"
     private var serial = 0
     private var isDemoPlaying = false
+    private var accountSession: AccountSession? = null
     private var sitePlayer: SitePlaybackSession? = null
     private var returnToItem: MediaItem? = null
 
@@ -108,6 +111,8 @@ class MainActivity : Activity() {
         if (isDemoPlaying) closeDemo(savePosition = true)
         sitePlayer?.close()
         sitePlayer = null
+        accountSession?.close()
+        accountSession = null
         root.removeAllViews()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -127,8 +132,9 @@ class MainActivity : Activity() {
             "Filme" to { showShelf(CatalogShelf.MOVIES) },
             "Serien" to { showShelf(CatalogShelf.SERIES) },
             "Suche" to { showSearch() },
-            "Merkliste" to { showLocalList("Favoriten", state.favorites()) },
-            "Verlauf" to { showLocalList("Zuletzt geöffnet", state.history()) },
+            "Mein Konto" to { openAccount() },
+            "Lokale Merkliste" to { showLocalList("Favoriten", state.favorites()) },
+            "Lokaler Verlauf" to { showLocalList("Zuletzt geöffnet", state.history()) },
             "Info & Test" to { showInfo() }
         )
         var first: Button? = null
@@ -268,6 +274,7 @@ class MainActivity : Activity() {
             return
         }
         if (isDemoPlaying) closeDemo(true)
+        closeAccount()
         sitePlayer?.close()
         sitePlayer = null
         screen = "watch"
@@ -285,6 +292,27 @@ class MainActivity : Activity() {
         sitePlayer?.close()
         sitePlayer = null
         returnToItem = null
+    }
+
+    private fun openAccount(initialUrl: String = AccountRoutes.HOME) {
+        if (isDemoPlaying) closeDemo(true)
+        sitePlayer?.close()
+        sitePlayer = null
+        accountSession?.close()
+        accountSession = null
+        screen = "account"
+        serial++
+        val session = AccountSession(this, root) {
+            closeAccount()
+            showShelf(CatalogShelf.HOME)
+        }
+        accountSession = session
+        session.start(initialUrl)
+    }
+
+    private fun closeAccount() {
+        accountSession?.close()
+        accountSession = null
     }
 
     private fun showSearch() {
@@ -339,8 +367,11 @@ class MainActivity : Activity() {
     }
 
     private fun showInfo() {
-        val feed = begin("info", "Informationen", "Native Vorschau · Version 0.2.0")
-        feed.addView(label("Die gesamte Navigation und der Katalog bestehen aus nativen TV-Komponenten.", 18f))
+        val feed = begin("info", "Informationen", "Projektor TV · Version 0.4.0")
+        feed.addView(label("Startseite, Filme, Serien, Suche und Merkliste sind native Android-TV-Ansichten.", 18f))
+        feed.addView(button("BingeBang-Konto öffnen / registrieren") { openAccount() }, lp(dp(470), dp(62)))
+        feed.addView(label("Anmeldung, Registrierung und My Space laufen ausschließlich auf bingebang.st. Die App speichert kein Passwort. Native Merkliste und Verlauf sind lokal.", 16f, muted),
+            lp().apply { topMargin = dp(12); bottomMargin = dp(12) })
         feed.addView(label("Bei BingeBang-Filmen öffnet sich ausschließlich für die Wiedergabe der Original-Webplayer. Das Verhalten hängt von WebView, Anbieter-Servern und verfügbaren Filmen ab.", 18f, muted),
             lp().apply { topMargin = dp(16); bottomMargin = dp(16) })
         feed.addView(button("Native Videowiedergabe mit Testvideo prüfen") { startDemo() }, lp(dp(480), dp(62)))
@@ -367,6 +398,8 @@ class MainActivity : Activity() {
     @Deprecated("Legacy Android TV back handling")
     override fun onBackPressed() {
         when {
+            accountSession != null && accountSession?.back() == true -> Unit
+            accountSession != null -> { closeAccount(); showShelf(CatalogShelf.HOME) }
             sitePlayer != null && sitePlayer?.back() == true -> Unit
             sitePlayer != null -> {
                 val item = returnToItem
@@ -381,15 +414,18 @@ class MainActivity : Activity() {
     }
     override fun onPause() {
         sitePlayer?.onPause()
+        accountSession?.onPause()
         if (isDemoPlaying) { state.setDemoPosition(player.position()); player.pause() }
         super.onPause()
     }
     override fun onResume() {
         super.onResume()
         sitePlayer?.onResume()
+        accountSession?.onResume()
     }
     override fun onDestroy() {
         closeSitePlayer()
+        closeAccount()
         closeDemo(true)
         pool.shutdownNow()
         super.onDestroy()
