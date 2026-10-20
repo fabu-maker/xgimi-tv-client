@@ -127,11 +127,11 @@ class AccountSession(
                     !AccountRoutes.allowedMainFrame(url)
 
                 override fun onPageFinished(view: WebView, url: String) {
-                    if (active) title?.text = "BingeBang-Konto · bingebang.st · " + (view.title ?: "Mein Konto")
+                    if (active) this@AccountSession.title?.text = "BingeBang-Konto · bingebang.st · " + (view.title ?: "Mein Konto")
                     CookieManager.getInstance().flush()
                 }
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                    if (active && request.isForMainFrame) title?.text = "Ladefehler: " + error.description
+                    if (active && request.isForMainFrame) this@AccountSession.title?.text = "Ladefehler: " + error.description
                 }
                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                     (view.parent as? ViewGroup)?.removeView(view)
