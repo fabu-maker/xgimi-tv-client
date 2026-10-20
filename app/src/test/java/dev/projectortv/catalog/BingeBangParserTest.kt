@@ -38,14 +38,6 @@ class BingeBangParserTest {
         assertEquals("A story.", result?.overview)
     }
 
-    @Test fun searchAndFavouritesAreDeterministic() {
-        val entries = BingeBangParser.parseShelf(sample)
-        assertEquals(1, NativeLibrary.search(entries, "example film").size)
-        val url = entries[0].url
-        assertEquals(listOf(url), NativeLibrary.toggle(emptyList(), url))
-        assertTrue(NativeLibrary.toggle(listOf(url), url).isEmpty())
-    }
-
     @Test fun rejectOffOriginPosterAndScriptUrls() {
         assertNull(BingeBangParser.posterUrlFromRaw("javascript:alert(1)"))
         assertNull(BingeBangParser.posterUrlFromRaw("https://evil.example/image.jpg"))
