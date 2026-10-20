@@ -10,20 +10,18 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify short HTTPS redirect to released APK
+      - name: Verify published short APK link
         shell: bash
         run: |
           set -euo pipefail
           APK_URL='https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.1.0/projektor-tv.apk'
-          SHORT_URL='https://spoo.me/xgimitv01'
-          curl -fsSL 'https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.1.0' | python3 -c 'import json,sys; a=json.load(sys.stdin)["assets"]; assert any(x["name"]=="projektor-tv.apk" and x["state"]=="uploaded" for x in a)'
-          curl -sS -D headers -o /dev/null --max-time 25 "$SHORT_URL"
+          SHORT_URL='https://urlvanish.com/254f8261'
+          curl -fsSL --get --data-urlencode 'format=simple' --data-urlencode "url=${SHORT_URL}" 'https://urlvanish.com/api/expand' | tee expanded
+          test "$(cat expanded)" = "${APK_URL}"
+          curl -sS -D headers -o /dev/null --max-time 30 "${SHORT_URL}"
           cat headers
           location="$(tr -d '\r' < headers | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//' || true)"
           echo "Redirect target: ${location}"
-          if [ "${location}" != "${APK_URL}" ]; then
-            echo 'Short HTTPS URL did not redirect to the APK' >&2
-            exit 1
-          fi
+          test "${location}" = "${APK_URL}"
           echo "SHORT_APK_URL=${SHORT_URL}" >> "${GITHUB_STEP_SUMMARY}"
           echo "::notice title=Verified short APK URL::${SHORT_URL}"
