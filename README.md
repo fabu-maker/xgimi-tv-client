@@ -4,6 +4,12 @@ Android-TV-Client im Entwicklungszweig `bingebang-smarttube-audit`, aufbauend au
 
 **Die reale BingeBang-Wiedergabe und das Benutzerkonto sind noch nicht verifiziert.** Beim Filmstart im Cloud-Browser am 20.10.2026 erschien eine Cloudflare-/VPN-Prüfung. Ein physischer Xgimi wurde nicht getestet. Der detaillierte Befund steht in [docs/SMARTTUBE_BINGEBANG_AUDIT.md](docs/SMARTTUBE_BINGEBANG_AUDIT.md).
 
+## Download zur Geräteprüfung
+
+[Signierte Prüf-APK: urlvanish.com/xgimi06](https://urlvanish.com/xgimi06) · [Installationshinweise](docs/INSTALL_0_6.md) · [Prüfprotokoll](docs/VERIFIED_0_6.md)
+
+CI-Lauf 39483073752: Build erfolgreich, 5 JVM-Tests und 4 Offline-Tests auf Android TV bestanden; Release-Lint mit 0 Fehlern und 12 Warnungen. Signatur und Download-Prüfsumme sind geprüft. Dies ist eine Vorabversion mit offener Live-/Xgimi-Abnahme.
+
 ## Implementierter Stand
 
 - Native horizontale Leanback-Reihen mit angepassten SmartTube-Karten und Fokussteuerung.

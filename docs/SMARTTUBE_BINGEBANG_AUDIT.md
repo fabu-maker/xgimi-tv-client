@@ -83,6 +83,8 @@ Umgebung: bereitgestellter Desktop-Cloud-Browser, nicht Android WebView, nicht A
 
 Der Browserzugang erlaubte DOM- und Konsoleninspektion. Ein vollständiger HAR-Mitschnitt mit Request-/Response-Headern wurde nicht erzeugt. Session-Cookienamen, Authentifizierungsablauf, Kontoschnittstellen, Suchrequests, Staffel-/Episodenrequests und Medienmanifest sind nicht verifiziert. Die Aussagen der Website über Favoriten, Verlauf, Untertitel und mehrere Server wurden gesehen, aber nicht funktional bestätigt.
 
+Die unveränderte Prüfseite wurde als [Screenshot](evidence/bingebang-block-1792524586365.jpg) gesichert. Sie zeigt kein bedienbares CAPTCHA-Widget.
+
 Dieser Befund beweist eine Sperre für den verwendeten Cloud-Browser. Er beweist weder einen generellen Ausfall der Website noch eine prinzipielle Unmöglichkeit auf dem Xgimi.
 
 ## Architekturentscheidung und offene Alternativen
@@ -96,6 +98,15 @@ Dieser Befund beweist eine Sperre für den verwendeten Cloud-Browser. Er beweist
 
 Die hybride Integration wird als überprüfbarer Entwicklungsstand weitergeführt. Ohne erfolgreiche Wiedergabeprüfung kann keine Variante als funktionierendes Endergebnis gelten.
 
+### Konkrete Grenzen der implementierten Oberfläche
+
+- Native Reihen zeigen höchstens 160 Titel-Links aus dem aktuell geladenen DOM. Eine native Katalog-Paginierung oder automatische Übernahme sämtlicher Such-/Filterergebnisse ist nicht implementiert. Die vollständigen Websiteansichten bleiben über das Menü erreichbar.
+- Native Details enthalten den gelesenen Titel und den Medientyp. Beschreibung, Staffeln, Episoden und Merkliste öffnen die Originalseite. Ihre Live-Bedienung wurde noch nicht geprüft.
+- Die Suchhilfe öffnet das originale Suchfeld. Der Offline-Test belegt das Öffnen und Fokussieren des Felds sowie D-Pad-Wechsel zwischen HTML-Schaltflächen. Er belegt keine realen Suchergebnisse und keine vollständig mit einer Xgimi-Fernbedienung durchlaufene Bildschirmtastatur.
+- Hauptfenster-Wechsel auf andere Domains werden blockiert. Falls ein regulärer Anmelde- oder Playerablauf einen solchen Wechsel benötigt, muss dieser erst beobachtet und gezielt berücksichtigt werden. Fremde Player-Iframes erhalten keine injizierte Steuerung.
+- Vollbildcontainer und WebView-Lebenszyklus sind implementiert. Player-Tasten, Untertitel, Hintergrundton, echte Fortschrittsspeicherung und TV-Codecs benötigen weiterhin einen Test mit dem Originalplayer.
+- Der unbenutzte lokale Favoritencode des Altprojekts wurde entfernt. Es gibt keine native Ersatzmerkliste.
+
 ## Lizenznachweis
 
 Übernommen: `TvCardPresenter.kt` aus SmartTube `VideoCardPresenter.java`, `TvListRowPresenter.kt` aus `CustomListRowPresenter.java` und den drei Konstanten in `ViewUtil.java`. Quellcommit und Änderungen stehen in den Dateiköpfen. MIT-Lizenz und Copyright liegen in `app/src/main/assets/licenses/SmartTube-MIT.txt` und sind im Info-Dialog erreichbar.
@@ -106,19 +117,21 @@ JUnit 4.13.2 ist eine Testabhängigkeit (EPL 1.0), Hamcrest Core 1.3 verwendet B
 
 ## Prüfmatrix
 
-| Ebene | Was damit geprüft wird | Status dieses Dokuments vor dem CI-Lauf |
+| Ebene | Was damit geprüft wird | Belegter Status |
 |---|---|---|
 | Statische Prüfung | JavaScript-Syntax, Patch-/Whitespace-Check | bestanden |
-| Android-Kompilierung | Kotlin/Java, Ressourcen, Manifest, APK-Erzeugung | Lauf angefordert; Ergebnis separat festhalten |
-| JVM-Tests | URL-Policy und HTML-Parser | Lauf angefordert |
-| Release-Lint | Android-Quellcode-/Ressourcenprüfungen | Lauf angefordert |
-| Lizenzinventar | Tatsächlich aufgelöste Laufzeitmodule und Lizenzangaben | Lauf angefordert |
-| Android-TV-Instrumentierung | Offline-HTML, echte WebView, D-Pad, native Karten, Zurück, Prüfseite | Lauf angefordert; keine echten Websitezugriffe |
-| Signatur | Paket/Version und vorhandener Projektfingerabdruck | Veröffentlichung erst nach erfolgreicher Prüfung |
+| Android-Kompilierung | Kotlin/Java, Ressourcen, Manifest, APK-Erzeugung | bestanden für Quellstand `893c934` (CI 39483073752) |
+| JVM-Tests | URL-Policy und HTML-/Posterparser | 5 bestanden (CI 39483073752) |
+| Release-Lint | Android-Quellcode-/Ressourcenprüfungen | 0 Fehler, 12 Warnungen; einzeln im Prüfprotokoll |
+| Lizenzinventar | Tatsächlich aufgelöste Laufzeitmodule und Lizenzangaben | 45 Module geprüft; Apache 2.0 / MIT |
+| Android-TV-Instrumentierung | Offline-HTML, echte WebView, D-Pad, native Karten, Zurück, Prüfseite | 4 bestanden auf Android TV 10 / WebView 83.0.4103.101; keine echten Websitezugriffe |
+| Signatur | Paket/Version und vorhandener Projektfingerabdruck | APK v2 verifiziert; versionCode 6; Fingerabdruck stimmt überein |
 | BingeBang im Desktop-Browser | Startseite, Film-Link, Sperrseite | beobachtet; Video nicht gestartet |
 | Reales BingeBang-Konto | Login, Registrierung, Merkliste, Verlauf | nicht geprüft |
 | Reale Filme/Serien auf Android TV | Bild, Ton, Vollbild, Pause, Spulen, Untertitel | nicht geprüft |
 | Physischer Xgimi | Bedienung, Performance, Codecs, Neuöffnung | nicht geprüft; kein Gerät verbunden |
+
+Die zugehörigen [Prüfergebnisse](VERIFIED_0_6.md) unterscheiden ausdrücklich Code-, Emulator- und Live-Nachweise. Die fünf JVM-Tests enthalten auch beibehaltene HTML-Parserprüfungen aus dem Altprojekt. Der neue JavaScript-DOM-Adapter wird in den vier Instrumentierungstests geprüft.
 
 ## Fortsetzung und Abnahme
 
