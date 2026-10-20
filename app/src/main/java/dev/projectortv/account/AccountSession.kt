@@ -137,7 +137,7 @@ class AccountSession(
                     (view.parent as? ViewGroup)?.removeView(view)
                     view.destroy()
                     if (web === view) web = null
-                    if (active) title?.text = "Anmeldeansicht wurde beendet. Bitte zurück zur App."
+                    if (active) this@AccountSession.title?.text = "Anmeldeansicht wurde beendet. Bitte zurück zur App."
                     return true
                 }
             }
