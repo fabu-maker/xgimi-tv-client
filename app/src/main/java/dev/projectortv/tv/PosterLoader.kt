@@ -8,9 +8,11 @@ import dev.projectortv.catalog.BingeBangParser
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.RejectedExecutionException
 
 /** Small image cache and bounded thumbnails for older TV hardware. */
 class PosterLoader(private val executor: ExecutorService, private val onUi: ((() -> Unit) -> Unit)) {
+    @Volatile private var closed = false
     private val cache = object : LruCache<String, Bitmap>(12 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
     }
@@ -18,18 +20,20 @@ class PosterLoader(private val executor: ExecutorService, private val onUi: ((()
     fun into(imageView: ImageView, url: String?) {
         imageView.tag = url
         imageView.setImageDrawable(null)
-        if (url == null || BingeBangParser.posterUrlFromRaw(url) == null) return
+        if (closed || url == null || BingeBangParser.posterUrlFromRaw(url) == null) return
         cache.get(url)?.let { imageView.setImageBitmap(it); return }
-        executor.execute {
+        try { executor.execute {
             val bitmap = try { download(url) } catch (_: Exception) { null }
-            if (bitmap != null) {
+            if (bitmap != null && !closed) {
                 synchronized(cache) { cache.put(url, bitmap) }
                 onUi {
-                    if (imageView.tag == url) imageView.setImageBitmap(bitmap)
+                    if (!closed && imageView.tag == url) imageView.setImageBitmap(bitmap)
                 }
             }
-        }
+        } } catch (_: RejectedExecutionException) { /* Activity already disposed. */ }
     }
+
+    fun close() { closed = true; cache.evictAll() }
 
     private fun download(url: String): Bitmap? {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {

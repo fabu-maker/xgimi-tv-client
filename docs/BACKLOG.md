@@ -1,3 +1,5 @@
+> Historisches Dokument zu einem früheren Entwicklungsstand. Aktueller Befund und Prüfstatus: [SMARTTUBE_BINGEBANG_AUDIT.md](SMARTTUBE_BINGEBANG_AUDIT.md).
+
 # Rollen, Meilensteine, Backlog und Freigabegates
 
 Rollen sind Arbeits- und Prüfperspektiven innerhalb **einer** Assistenz, keine gestarteten autonomen Agenten.

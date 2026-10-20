@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
+"""Legacy entrypoint. Kept for old workflows; does not prove functional correctness."""
 from pathlib import Path
 import xml.etree.ElementTree as ET
-p=Path(__file__).resolve().parents[1]
-manifest=ET.parse(p/'app/src/main/AndroidManifest.xml').getroot()
-assert manifest.tag=='manifest'
-main=(p/'app/src/main/java/dev/projectortv/app/TvFacadeActivity.kt').read_text()
-bridge=(p/'app/src/main/java/dev/projectortv/app/SitePageBridge.kt').read_text()
-assert '.TvFacadeActivity' in (p/'app/src/main/AndroidManifest.xml').read_text()
-assert 'SitePageBridge(' in main and 'PosterLoader(' in main
-assert 'My Space' not in main or 'Mein Bereich' in main
-assert 'document.querySelectorAll' in bridge and 'evaluateJavascript' in bridge
-assert 'CookieManager.getInstance().flush()' in bridge
-assert 'BingeBangParser.parseShelf' not in main
-assert 'versionCode = 5' in (p/'app/build.gradle.kts').read_text()
-assert 'https://bingebang.st' in bridge
-print('TV facade, persistent provider session, Android manifest and release version: PASS')
+root=Path(__file__).resolve().parents[1]
+manifest=ET.parse(root/'app/src/main/AndroidManifest.xml').getroot()
+ns='{http://schemas.android.com/apk/res/android}'
+app=manifest.find('application')
+assert app.get(ns+'usesCleartextTraffic')=='false'
+assert app.get(ns+'allowBackup')=='false'
+source='\n'.join(p.read_text() for p in (root/'app/src/main/java').rglob('*.kt'))
+assert 'addJavascriptInterface(' not in source
+assert 'SslErrorHandler.proceed' not in source
+print('Manifest/bridge static checks passed; playback and accounts not tested here.')

@@ -84,16 +84,29 @@ val collectRuntimeLicenses by tasks.registering {
             setFeature("http://xml.org/sax/features/external-parameter-entities", false)
         }
         check(result.components.size == result.resolvedComponents.size) { "Dependency license metadata could not be resolved" }
+        fun readLicenses(pom: java.io.File, depth: Int = 0): List<String> {
+            check(depth < 8) { "POM parent chain too long" }
+            val document = factory.newDocumentBuilder().parse(pom)
+            val declared = document.getElementsByTagName("license")
+            if (declared.length > 0) return (0 until declared.length).map {
+                declared.item(it).textContent.trim().replace(Regex("\\s+"), " ")
+            }
+            val parent = document.getElementsByTagName("parent").item(0) as? org.w3c.dom.Element
+                ?: error("No license or parent in ${pom.name}")
+            fun field(name: String) = parent.getElementsByTagName(name).item(0)?.textContent?.trim()
+                ?: error("Missing parent $name in ${pom.name}")
+            val coordinate = "${field("groupId")}:${field("artifactId")}:${field("version")}"
+            val configuration = configurations.detachedConfiguration(dependencies.create("$coordinate@pom"))
+            configuration.isTransitive = false
+            return readLicenses(configuration.singleFile, depth + 1).map { "$it [inherited from $coordinate]" }
+        }
         result.resolvedComponents.sortedBy { it.id.displayName }.forEach { component ->
             val poms = component.getArtifacts(MavenPomArtifact::class.java).filterIsInstance<ResolvedArtifactResult>()
             check(poms.isNotEmpty()) { "Missing POM: ${component.id}" }
             poms.forEach { artifact ->
-                val document = factory.newDocumentBuilder().parse(artifact.file)
-                val licenses = document.getElementsByTagName("license")
-                check(licenses.length > 0) { "Missing license declaration: ${component.id}" }
+                val licenses = readLicenses(artifact.file)
                 report.append(component.id.displayName).append('\n')
-                for (index in 0 until licenses.length) {
-                    val declared = licenses.item(index).textContent.trim().replace(Regex("\\s+"), " ")
+                for (declared in licenses) {
                     check(declared.contains("Apache", true) || declared.contains("MIT", true) || declared.contains("BSD", true)) {
                         "Review additional runtime license before distribution: ${component.id}: $declared"
                     }

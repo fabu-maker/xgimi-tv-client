@@ -1,3 +1,5 @@
+> Historisches Dokument zu einem früheren Entwicklungsstand. Aktueller Befund und Prüfstatus: [SMARTTUBE_BINGEBANG_AUDIT.md](SMARTTUBE_BINGEBANG_AUDIT.md).
+
 # Architekturentscheidung ADR-001 (2026-10-20)
 
 ## Ausgangsbefund

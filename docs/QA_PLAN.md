@@ -1,3 +1,5 @@
+> Historisches Dokument zu einem früheren Entwicklungsstand. Aktueller Befund und Prüfstatus: [SMARTTUBE_BINGEBANG_AUDIT.md](SMARTTUBE_BINGEBANG_AUDIT.md).
+
 # Testplan und Prüfprotokoll
 
 ## Unit-Tests (CI)

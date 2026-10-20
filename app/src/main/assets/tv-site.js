@@ -93,7 +93,8 @@
       if (event.defaultPrevented || challenge() || document.fullscreenElement) return;
       if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return;
       var current = document.activeElement;
-      if (current && (current.isContentEditable || /^(INPUT|TEXTAREA|SELECT|VIDEO|IFRAME)$/.test(current.tagName) ||
+      if (current && (current.isContentEditable || /^(TEXTAREA|SELECT|VIDEO|IFRAME)$/.test(current.tagName) ||
+          (current.tagName==='INPUT' && (/Left|Right/.test(event.key) || /^(range|radio|checkbox)$/.test(current.type))) ||
           current.closest('[role="slider"],.plyr,.jwplayer,.video-js'))) return;
       var list = controls();
       if (!current || list.indexOf(current) < 0) {if (focusContent()) event.preventDefault(); return;}

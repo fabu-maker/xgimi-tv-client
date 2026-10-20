@@ -152,19 +152,21 @@ class SitePageBridge(
         if (!allowed(url)) {onProblem("Externer Seitenwechsel blockiert");return}
         exitFullscreen()
         generation++
+        pendingPlay = null
+        pendingSearch = false
         ready = false
         if (web == null) {initialize(false);websiteVisible(shown,toolbarHeight)}
         web?.loadUrl(url)
     }
     fun playTitle(url: String) {
         if (!allowedTitle(url)) {onProblem("Ungültige Titelseite");return}
-        pendingPlay = url
         navigate(url)
+        pendingPlay = url
     }
     private fun findPlayLink(url: String) {
         val version = generation
         web?.evaluateJavascript("window.__projectorTV && window.__projectorTV.playLink()") { raw ->
-            if (!isCurrent(version,url)) return@evaluateJavascript
+            if (!isCurrent(version,url) || blocked) return@evaluateJavascript
             pendingPlay = null
             val target = runCatching {JSONTokener(raw).nextValue() as? String}.getOrNull()
             if (target != null && allowed(target) && Regex("^/(movie|tv)/play/.*").matches(URI(target).path)) navigate(target)

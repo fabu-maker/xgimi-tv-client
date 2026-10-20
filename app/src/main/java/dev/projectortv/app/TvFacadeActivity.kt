@@ -229,5 +229,5 @@ open class TvFacadeActivity : FragmentActivity() {
     }
     override fun onPause() {if(::page.isInitialized) page.onPause();super.onPause()}
     override fun onResume() {super.onResume();if(::page.isInitialized) page.onResume()}
-    override fun onDestroy() {if(::page.isInitialized) page.dispose();workers.shutdownNow();handler.removeCallbacksAndMessages(null);super.onDestroy()}
+    override fun onDestroy() {if(::page.isInitialized) page.dispose();posters.close();workers.shutdownNow();handler.removeCallbacksAndMessages(null);super.onDestroy()}
 }
