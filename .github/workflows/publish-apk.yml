@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 40
     env:
       XGIMI_SIGNING_PASSPHRASE: ${{ secrets.XGIMI_SIGNING_PASSPHRASE }}
-      RELEASE_TAG: v0.3.0-playback-test
+      RELEASE_TAG: v0.4.0-account-preview
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -66,8 +66,8 @@ jobs:
           APK='app/build/outputs/apk/release/app-release.apk'
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
           test -s "$APK"
-          cp "$APK" projektor-tv-playback.apk
-          sha256sum projektor-tv-playback.apk > projektor-tv-playback.apk.sha256
+          cp "$APK" projektor-tv-account.apk
+          sha256sum projektor-tv-account.apk > projektor-tv-account.apk.sha256
       - name: Publish immutable first-release APK on GitHub HTTPS
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,8 +79,8 @@ jobs:
             exit 1
           fi
           gh release create "$RELEASE_TAG" \
-            projektor-tv-playback.apk#projektor-tv-playback.apk \
-            projektor-tv-playback.apk.sha256#projektor-tv-playback.apk.sha256 \
+            projektor-tv-account.apk#projektor-tv-account.apk \
+            projektor-tv-account.apk.sha256#projektor-tv-account.apk.sha256 \
             --target "$GITHUB_SHA" \
-            --title "Projektor TV 0.3.0 – native UI with provider playback" \
-            --notes "Native Android TV interface. The browser player is isolated to the actual watch screen. BingeBang real-world playback and media rights have not been verified on Xgimi; native demo player remains available."
+            --title "Projektor TV 0.4.0 – native interface with first-party account access" \
+            --notes "Android TV build with native catalogue interface, first-party BingeBang login/registration/My Space web session and isolated original-site player. No app-side credential capture. Account sync into native lists, player success on Xgimi and third-party integration rights are not verified."
