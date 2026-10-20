@@ -155,6 +155,30 @@ class SitePageBridge(
         view.visibility = if(show) View.VISIBLE else View.INVISIBLE
         if(show) view.requestFocus() else extract()
     }
+    /** Opens only the site's own search UI; results stay tied to the website account. */
+    fun focusSiteSearch() {
+        web?.postDelayed({
+            web?.evaluateJavascript("""
+(function(){
+ var q=document.querySelector('input[placeholder*="Search"],input[placeholder*="search"]');
+ if(!q){
+  var buttons=Array.from(document.querySelectorAll('button,[role=button]'));
+  var trigger=buttons.find(function(e){
+   var label=((e.getAttribute('aria-label')||'')+' '+(e.textContent||'')).trim();
+   return /search/i.test(label) && e.getClientRects().length>0;
+  });
+  if(trigger)trigger.click();
+  q=document.querySelector('input[placeholder*="Search"],input[placeholder*="search"]');
+ }
+ if(q){q.focus();return 'focused'}
+ return 'unavailable';
+})()
+            """.trimIndent()) { result ->
+                if (result=="\\"unavailable\\"") onProblem("Bitte die Website-Suche über das Suchsymbol öffnen")
+            }
+        },1200)
+    }
+
     fun refresh() { web?.reload() }
     fun onPause() { web?.onPause(); CookieManager.getInstance().flush() }
     fun onResume() { web?.onResume() }
