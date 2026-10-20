@@ -1,0 +1,84 @@
+name: Sign and publish Android TV APK
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'app/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'signing/**'
+      - '.github/workflows/publish-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      XGIMI_SIGNING_PASSPHRASE: ${{ secrets.XGIMI_SIGNING_PASSPHRASE }}
+      RELEASE_TAG: v0.1.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install Android SDK components
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Decrypt the persistent signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${XGIMI_SIGNING_PASSPHRASE:-}" ]; then
+            echo 'Missing required Actions secret XGIMI_SIGNING_PASSPHRASE' >&2
+            exit 1
+          fi
+          mkdir -p build/signing
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in signing/release.p12.enc -out build/signing/release.p12 \
+            -pass env:XGIMI_SIGNING_PASSPHRASE
+          keytool -list -storetype PKCS12 -keystore build/signing/release.p12 \
+            -storepass "$XGIMI_SIGNING_PASSPHRASE" -alias projector-release >/dev/null
+          echo 'Signing key decrypted and validated'
+      - name: Run unit tests and Android lint
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintRelease
+      - name: Build signed release
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Verify package signature and generate checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='app/build/outputs/apk/release/app-release.apk'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          test -s "$APK"
+          cp "$APK" projektor-tv.apk
+          sha256sum projektor-tv.apk > projektor-tv.apk.sha256
+      - name: Publish immutable first-release APK on GitHub HTTPS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists. Refusing to replace signed APK."
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" \
+            projektor-tv.apk#projektor-tv.apk \
+            projektor-tv.apk.sha256#projektor-tv.apk.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "Projektor TV 0.1.0 – unverified TV pilot" \
+            --notes "Android TV 9+ Testversion. Signatur verifiziert im CI. Keine Geräte- oder Player-Kompatibilität zugesichert. Für Installation über Downloader die APK aus den Release-Assets nutzen."
