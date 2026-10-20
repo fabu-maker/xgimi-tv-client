@@ -12,5 +12,6 @@ assert 'import android.webkit.' not in (p/'app/src/main/java/dev/projectortv/app
 assert 'WebView(' in (p/'app/src/main/java/dev/projectortv/player/SitePlaybackSession.kt').read_text()
 assert 'class NativeVideo' in java and 'ExoPlayer.Builder' in java
 assert 'class CatalogRepository' in java and 'BingeBangParser.parseShelf' in java
-assert 'versionCode = 3' in (p/'app/build.gradle.kts').read_text()
-print('Native UI with isolated website playback page, parser, version and manifest: PASS')
+assert 'class AccountSession' in java and 'AccountRoutes' in java
+assert 'versionCode = 4' in (p/'app/build.gradle.kts').read_text()
+print('Native UI with isolated account/player sessions, parser, version and manifest: PASS')
