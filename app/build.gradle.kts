@@ -4,6 +4,7 @@ import org.gradle.maven.MavenModule
 import org.gradle.maven.MavenPomArtifact
 import javax.xml.parsers.DocumentBuilderFactory
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 
 plugins {
     id("com.android.application")
@@ -114,13 +115,28 @@ val collectRuntimeLicenses by tasks.registering {
                 }
             }
         }
+        fun isNotice(name: String) = Regex("(?i)^(license|notice|copying|copyright)([._-].*)?$")
+            .matches(name.substringAfterLast('/'))
+        fun appendNotice(label: String, bytes: ByteArray) {
+            check(bytes.size <= 200000) { "Review unusually large license notice: $label" }
+            report.append("\nEmbedded notice: $label\n").append(bytes.toString(Charsets.UTF_8)).append('\n')
+        }
         runtime.resolvedConfiguration.resolvedArtifacts.sortedBy { it.moduleVersion.id.toString() }.forEach { artifact ->
             if (artifact.file.extension in setOf("jar", "aar")) ZipFile(artifact.file).use { zip ->
-                zip.entries().asSequence().filter { !it.isDirectory &&
-                    (it.name.contains("license",true) || it.name.contains("notice",true)) && it.size > 0 && it.size < 200000
-                }.forEach { entry ->
-                    report.append("\nEmbedded notice: ${artifact.moduleVersion.id}/${entry.name}\n")
-                    report.append(zip.getInputStream(entry).bufferedReader().use { it.readText() }).append('\n')
+                zip.entries().asSequence().filter { !it.isDirectory }.forEach { entry ->
+                    val label="${artifact.moduleVersion.id}/${entry.name}"
+                    if (isNotice(entry.name)) zip.getInputStream(entry).use { appendNotice(label,it.readNBytes(200001)) }
+                    // Android AARs also carry notices inside classes.jar and libs/*.jar.
+                    if (artifact.file.extension == "aar" && entry.name.endsWith(".jar")) {
+                        ZipInputStream(zip.getInputStream(entry)).use { nested ->
+                            var child=nested.nextEntry
+                            while(child != null) {
+                                if(!child.isDirectory && isNotice(child.name)) appendNotice("$label/${child.name}",nested.readNBytes(200001))
+                                nested.closeEntry()
+                                child=nested.nextEntry
+                            }
+                        }
+                    }
                 }
             }
         }
