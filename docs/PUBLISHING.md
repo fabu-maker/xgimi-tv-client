@@ -1,3 +1,5 @@
+> Historisches Dokument zu einem früheren Entwicklungsstand. Aktueller Befund und Prüfstatus: [SMARTTUBE_BINGEBANG_AUDIT.md](SMARTTUBE_BINGEBANG_AUDIT.md).
+
 # Automatische signierte APK und öffentliche HTTPS-Bereitstellung
 
 Stand: 2026-10-20. **Release-Workflow vorbereitet, noch nicht auf GitHub ausgeführt.** Die lokal verfügbare Umgebung kann wegen fehlendem Android SDK/Gradle und blockierter externer Namensauflösung keine APK bauen oder veröffentlichen.

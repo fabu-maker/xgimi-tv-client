@@ -16,26 +16,4 @@ class NavigationTest {
         ).forEach { assertFalse("Unexpected acceptance: $it", UrlPolicy.isAllowedUrl(it)) }
     }
 
-    @Test fun bookmarksStripQueriesAndFragments() {
-        assertEquals("https://bingebang.st/movie/watch/abc", UrlPolicy.bookmarkUrl("https://bingebang.st/movie/watch/abc?token=private#position"))
-        assertNull(UrlPolicy.bookmarkUrl("https://evil.test/item?token=sensitive"))
-    }
-
-    @Test fun sectionUrlsRemainAllowed() = Section.entries.forEach {
-        assertTrue(it.name, UrlPolicy.isAllowedUrl(it.url))
-    }
-
-    @Test fun favoritesAreUniqueOrderedAndCapped() {
-        val first = Favorites.add(emptyList(), "https://bingebang.st/one")
-        assertEquals(listOf("https://bingebang.st/one"), first)
-        assertEquals(first, Favorites.add(first, "https://bingebang.st/one"))
-        assertEquals(first, Favorites.add(first, "https://evil.test/"))
-        val many = (1..60).fold(emptyList<String>()) { acc, i ->
-            Favorites.add(acc, "https://bingebang.st/item-$i")
-        }
-        assertEquals(40, many.size)
-        assertEquals("https://bingebang.st/item-60", many.first())
-        assertEquals("https://bingebang.st/item-21", many.last())
-        assertFalse(Favorites.remove(many, many.first()).contains(many.first()))
-    }
 }

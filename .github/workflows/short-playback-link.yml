@@ -1,0 +1,34 @@
+name: Verify short native playback APK link
+on:
+  push:
+    paths:
+      - '.github/workflows/short-playback-link.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Create short link and verify direct redirect
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_URL='https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.3.0-playback-test/projektor-tv-playback.apk'
+          curl -fsSL --max-time 20 'https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.3.0-playback-test' | python3 -c 'import json,sys; d=json.load(sys.stdin); assert any(a["name"]=="projektor-tv-playback.apk" and a["state"]=="uploaded" for a in d["assets"])'
+          short="$(curl -fsSL --max-time 25 --get --data-urlencode 'format=simple' --data-urlencode "url=${APK_URL}" --data-urlencode 'shorturl=xgimi03' 'https://urlvanish.com/api/shorten' || true)"
+          case "${short}" in
+            https://urlvanish.com/*) ;;
+            *) short="$(curl -fsSL --max-time 25 --get --data-urlencode 'format=simple' --data-urlencode "url=${APK_URL}" 'https://urlvanish.com/api/shorten')" ;;
+          esac
+          echo "Candidate short link: ${short}"
+          case "${short}" in https://urlvanish.com/*) ;; *) exit 1;; esac
+          expanded="$(curl -fsSL --max-time 20 --get --data-urlencode 'format=simple' --data-urlencode "url=${short}" 'https://urlvanish.com/api/expand')"
+          echo "Expanded: ${expanded}"
+          test "${expanded}" = "${APK_URL}"
+          redirect="$(curl -sS -D - -o /dev/null --max-time 25 "${short}" | tr -d '\r' | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//')"
+          echo "Direct redirect: ${redirect}"
+          test "${redirect}" = "${APK_URL}"
+          echo "SHORT_APK_URL=${short}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice title=Verified short TV link::${short}"

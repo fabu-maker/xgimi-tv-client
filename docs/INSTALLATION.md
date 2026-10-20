@@ -1,3 +1,5 @@
+> Historisches Dokument zu einem früheren Entwicklungsstand. Aktueller Befund und Prüfstatus: [SMARTTUBE_BINGEBANG_AUDIT.md](SMARTTUBE_BINGEBANG_AUDIT.md).
+
 # Installation auf Xgimi (nach erfolgreichem Build)
 
 Für den späteren Direktdownload muss eine **tatsächlich gebaute, signierte APK auf einem öffentlichen HTTPS-Server** liegen. Diese URL existiert noch nicht.

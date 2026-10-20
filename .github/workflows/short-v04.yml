@@ -1,0 +1,30 @@
+name: Short installation URL for 0.4
+on:
+  push:
+    branches: [native-v2]
+    paths:
+      - '.github/workflows/short-v04.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create and verify simple TV download link
+        shell: bash
+        env:
+          APK_URL: https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.4.0-account-preview/projektor-tv-account.apk
+        run: |
+          set -euo pipefail
+          curl -fsSL 'https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.4.0-account-preview' | python3 -c 'import sys,json; a=json.load(sys.stdin)["assets"]; assert any(x["name"]=="projektor-tv-account.apk" and x["state"]=="uploaded" for x in a)'
+          short="$(curl -fsSL --get --data-urlencode 'format=simple' --data-urlencode 'shorturl=xgimi04' --data-urlencode "url=${APK_URL}" 'https://urlvanish.com/api/shorten')"
+          echo "Short URL: ${short}"
+          case "${short}" in https://urlvanish.com/*) ;; *) exit 1;; esac
+          expanded="$(curl -fsSL --get --data-urlencode 'format=simple' --data-urlencode "url=${short}" 'https://urlvanish.com/api/expand')"
+          test "${expanded}" = "${APK_URL}"
+          location="$(curl -sS -D - -o /dev/null --max-time 20 "${short}" | tr -d '\r' | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//' || true)"
+          echo "Redirect: ${location}"
+          test "${location}" = "${APK_URL}"
+          echo "APK:${short}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice title=Verified TV APK URL::${short}"

@@ -1,0 +1,30 @@
+name: Create verified short native APK URL
+on:
+  push:
+    branches: [native-v2]
+    paths:
+      - '.github/workflows/native-apk-short-link.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shorten:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create and verify HTTPS redirect
+        shell: bash
+        env:
+          APK_URL: https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.2.0-native-preview/projektor-tv-native.apk
+        run: |
+          set -euo pipefail
+          curl -fsSL 'https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.2.0-native-preview' | python3 -c 'import json,sys; r=json.load(sys.stdin); assert any(a["name"]=="projektor-tv-native.apk" and a["state"]=="uploaded" for a in r["assets"])'
+          short="$(curl -fsSL --retry 2 --get --data-urlencode 'format=simple' --data-urlencode "url=${APK_URL}" 'https://urlvanish.com/api/shorten')"
+          echo "Generated: ${short}"
+          case "${short}" in https://urlvanish.com/*) ;; *) echo 'Invalid short link' >&2; exit 1;; esac
+          expanded="$(curl -fsSL --get --data-urlencode 'format=simple' --data-urlencode "url=${short}" 'https://urlvanish.com/api/expand')"
+          [ "${expanded}" = "${APK_URL}" ] || { echo 'Expanded destination mismatch' >&2; exit 1; }
+          curl -sS -D headers -o /dev/null --max-time 30 "${short}"
+          location="$(tr -d '\r' < headers | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//' || true)"
+          [ "${location}" = "${APK_URL}" ] || { echo 'HTTP redirect mismatch' >&2; exit 1; }
+          echo "VERIFIED_NATIVE_APK_LINK=${short}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice title=Verified native APK URL::${short}"
