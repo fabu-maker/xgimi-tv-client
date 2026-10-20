@@ -39,7 +39,7 @@ class MainActivity : Activity() {
     private val surfaceColor = Color.rgb(9, 15, 25)
     private val panel = Color.rgb(23, 34, 50)
     private val focused = Color.rgb(100, 203, 218)
-    private val foreground = Color.rgb(240, 247, 250)
+    private val ink = Color.rgb(240, 247, 250)
     private val muted = Color.rgb(172, 186, 202)
     private val pool = Executors.newFixedThreadPool(4)
     private val handler = Handler(Looper.getMainLooper())
@@ -66,7 +66,7 @@ class MainActivity : Activity() {
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun lp(w: Int = -1, h: Int = -2) = LinearLayout.LayoutParams(w, h)
-    private fun label(value: String, size: Float = 19f, tint: Int = foreground, bold: Boolean = false) =
+    private fun label(value: String, size: Float = 19f, tint: Int = ink, bold: Boolean = false) =
         TextView(this).apply {
             text = value
             textSize = size
@@ -79,7 +79,7 @@ class MainActivity : Activity() {
         text = title
         isAllCaps = false
         textSize = 16f
-        setTextColor(foreground)
+        setTextColor(ink)
         minHeight = dp(54)
         isFocusable = true
         isFocusableInTouchMode = true
@@ -87,7 +87,7 @@ class MainActivity : Activity() {
         setPadding(dp(16), dp(10), dp(16), dp(10))
         setOnFocusChangeListener { view, hasFocus ->
             view.background = bg(hasFocus)
-            (view as Button).setTextColor(if (hasFocus) surfaceColor else foreground)
+            (view as Button).setTextColor(if (hasFocus) surfaceColor else ink)
             view.elevation = if (hasFocus) dp(8).toFloat() else 0f
         }
         setOnClickListener { click() }
@@ -140,7 +140,7 @@ class MainActivity : Activity() {
         outer.addView(scroll, lp(0, -1).apply { weight = 1f })
         val feed = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(feed)
-        feed.addView(label(heading, 31f, foreground, true))
+        feed.addView(label(heading, 31f, ink, true))
         feed.addView(label(description, 15f, muted), lp().apply { bottomMargin = dp(24); topMargin = dp(5) })
         first?.post { if (screen == id) first?.requestFocus() }
         return feed
@@ -180,7 +180,7 @@ class MainActivity : Activity() {
     private fun lookup(urls: List<String>) = urls.mapNotNull { cachedItems[it] }
 
     private fun mediaRow(feed: LinearLayout, heading: String, items: List<MediaItem>) {
-        feed.addView(label("$heading (${items.size})", 22f, foreground, true), lp().apply {
+        feed.addView(label("$heading (${items.size})", 22f, ink, true), lp().apply {
             bottomMargin = dp(10); topMargin = dp(12)
         })
         if (items.isEmpty()) {
@@ -223,7 +223,7 @@ class MainActivity : Activity() {
         }
         wrapper.addView(image, lp(-1, dp(207)))
         posters.into(image, item.posterUrl)
-        wrapper.addView(label(item.title.take(35), 14f, foreground, true), lp(-1, dp(51)))
+        wrapper.addView(label(item.title.take(35), 14f, ink, true), lp(-1, dp(51)))
         return wrapper
     }
 
@@ -267,7 +267,7 @@ class MainActivity : Activity() {
             isSingleLine = true
             setSingleLine()
             textSize = 20f
-            setTextColor(foreground)
+            setTextColor(ink)
             setHintTextColor(muted)
             setPadding(dp(18), dp(13), dp(18), dp(13))
             background = bg(false)
