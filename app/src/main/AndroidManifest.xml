@@ -12,7 +12,7 @@
         android:allowBackup="false"
         android:supportsRtl="true">
         <activity
-            android:name=".MainActivity"
+            android:name=".TvFacadeActivity"
             android:exported="true"
             android:screenOrientation="landscape"
             android:configChanges="keyboardHidden|orientation|screenSize">
