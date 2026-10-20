@@ -1,14 +1,42 @@
-name: Android TV build and checks
+name: Build, licenses and offline Android TV tests
 on:
   push:
+    branches: [bingebang-smarttube-audit, main]
   pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
-
+concurrency:
+  group: tv-check-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Unit tests, release lint, compile and runtime license audit
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-and-license-evidence
+          path: |
+            app/build/reports/
+            app/build/test-results/
+            app/build/generated/licenseAssets/
+          retention-days: 14
+  android-tv:
+    needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -21,18 +49,82 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Android SDK components
-        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Verify native architecture
-        run: python3 tools/native_static_check.py
-      - name: Unit tests and signed debug APK
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
-      - name: SHA-256
-        run: sha256sum app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload APK for internal testing
-        uses: actions/upload-artifact@v4
+      - run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Allow this isolated runner to use its emulator device
+        run: sudo chmod a+rw /dev/kvm
+      - name: Execute offline fixtures on an Android TV image
+        uses: reactivecircus/android-emulator-runner@v2
         with:
-          name: xgimi-tv-unsigned-for-release-debug-signed
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
+          api-level: 29
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: |
+            adb shell getprop ro.build.fingerprint > android-tv-environment.txt
+            adb shell dumpsys webviewupdate >> android-tv-environment.txt
+            gradle --no-daemon :app:connectedDebugAndroidTest
+            adb pull /sdcard/Android/data/dev.projectortv.client/files/screenshots tv-screenshots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-tv-offline-evidence
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            android-tv-environment.txt
+            tv-screenshots/
+          retention-days: 14
+  signed-device-build:
+    needs: [validate, android-tv]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/bingebang-smarttube-audit'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Use existing project signing identity
+        env:
+          XGIMI_SIGNING_PASSPHRASE: ${{ secrets.XGIMI_SIGNING_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$XGIMI_SIGNING_PASSPHRASE"
+          mkdir -p build/signing
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in signing/release.p12.enc -out build/signing/release.p12 -pass env:XGIMI_SIGNING_PASSPHRASE
+          gradle --no-daemon :app:assembleRelease
+      - name: Verify exact signer and package
+        run: |
+          set -euo pipefail
+          cp app/build/outputs/apk/release/app-release.apk projektor-tv-device-check.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs projektor-tv-device-check.apk | tee signature.txt
+          grep -qi 'c5733ec4c9ae98ff546faad957b2310f65386c419c7d12f63a6444e8ad68b94b' signature.txt
+          sha256sum projektor-tv-device-check.apk > projektor-tv-device-check.apk.sha256
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging projektor-tv-device-check.apk > package.txt
+          grep "versionCode='6'" package.txt
+          cp app/build/generated/licenseAssets/licenses/DEPENDENCIES.txt runtime-licenses.txt
+      - name: Publish explicitly unverified device build as prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=v0.6.0-device-check
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo 'Version already exists; refusing to replace its APK.'
+            exit 0
+          fi
+          gh release create "$TAG" projektor-tv-device-check.apk projektor-tv-device-check.apk.sha256 signature.txt package.txt runtime-licenses.txt \
+            --target "$GITHUB_SHA" --prerelease --latest=false --title 'Projektor TV 0.6.0 – Geräteprüfung, Live-Wiedergabe offen' --notes-file docs/RELEASE_0_6.md
+      - name: Remove decrypted key
+        if: always()
+        run: rm -f build/signing/release.p12

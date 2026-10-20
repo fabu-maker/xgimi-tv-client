@@ -1,0 +1,5 @@
+<resources>
+    <item name="site_webview" type="id" />
+    <item name="catalog_rows" type="id" />
+    <item name="website_toolbar" type="id" />
+</resources>

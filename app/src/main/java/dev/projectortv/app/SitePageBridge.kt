@@ -2,91 +2,68 @@ package dev.projectortv.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.graphics.Color
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.CookieManager
-import android.webkit.RenderProcessGoneDetail
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebSettings
+import android.view.WindowManager
+import android.webkit.*
 import android.widget.FrameLayout
-import org.json.JSONArray
+import dev.projectortv.catalog.BingeBangParser
+import dev.projectortv.core.UrlPolicy
+import org.json.JSONObject
 import org.json.JSONTokener
 import java.net.URI
 
-/** One persistent first-party web session powers TV catalog, account, settings and playback. */
+/** One WebView owns the real site session, forms, history and original player. */
 class SitePageBridge(
     private val activity: Activity,
     private val host: FrameLayout,
-    private val onCatalog: (List<SiteTitle>) -> Unit,
+    private val onCatalog: (String, List<SiteTitle>) -> Unit,
     private val onLocation: (String) -> Unit,
-    private val onProblem: (String) -> Unit
+    private val onProblem: (String) -> Unit,
+    private val onBlocked: () -> Unit,
+    private val onFullscreen: (Boolean) -> Unit
 ) {
     companion object {
-        const val ORIGIN = "https://bingebang.st"
-        fun allowed(url: String?): Boolean = try {
-            val uri = URI(url ?: "")
-            uri.scheme.equals("https", true) &&
-                uri.host.equals("bingebang.st", true) &&
-                (uri.port == -1 || uri.port == 443) &&
-                uri.userInfo == null && url!!.length < 4096
-        } catch (_: Exception) { false }
-
+        const val ORIGIN = UrlPolicy.ORIGIN
+        fun allowed(url: String?) = UrlPolicy.isAllowedUrl(url)
         fun allowedTitle(url: String): Boolean = allowed(url) &&
-            Regex("^/(movie|tv)/watch/[a-zA-Z0-9_-]+/?$").matches(URI(url).path)
-
-        /** DOM content only. Never inspect forms, inputs, credentials or session tokens. */
-        const val CATALOG_JS = """
-(function() {
- var found=[], seen={};
- var links=document.querySelectorAll('a[href]');
- for(var i=0;i<links.length && found.length<96;i++){
-   var a=links[i], href=a.href;
-   try {
-     var u=new URL(href);
-     if(u.protocol!=='https:' || u.hostname!=='bingebang.st')continue;
-     if(!/^\/(movie|tv)\/watch\/[a-zA-Z0-9_-]+\/?$/.test(u.pathname))continue;
-     if(seen[u.pathname])continue; seen[u.pathname]=true;
-     var img=a.querySelector('img');
-     var title=(a.getAttribute('aria-label')||a.getAttribute('title')||
-                (img&&img.alt)||a.innerText||a.textContent||'').trim().slice(0,130);
-     if(!title)title=decodeURIComponent(u.pathname.split('/').pop()).replace(/[-_]/g,' ');
-     var poster=img ? (img.currentSrc||img.src||img.getAttribute('data-src')||'') : '';
-     if(poster && !/^https:\/\//.test(poster))poster='';
-     found.push({title:title,url:u.origin+u.pathname,poster:poster,kind:u.pathname.startsWith('/movie/')?'Film':'Serie'});
-   } catch(e){}
- }
- return JSON.stringify(found);
-})()
-        """
+            Regex("^/(movie|tv)/watch/[a-zA-Z0-9_-]+/?$").matches(URI(url).rawPath)
     }
-
-    data class SiteTitle(val name: String, val url: String, val poster: String?, val kind: String)
-
+    data class SiteTitle(val name: String, val url: String, val poster: String?, val kind: String, val group: String = "")
+    private val handler = Handler(Looper.getMainLooper())
+    private val script by lazy { activity.assets.open("tv-site.js").bufferedReader().use { it.readText() } }
     private var web: WebView? = null
     private var full: View? = null
-    private var callback: WebChromeClient.CustomViewCallback? = null
+    private var fullCallback: WebChromeClient.CustomViewCallback? = null
     private var active = true
+    private var resumed = true
+    private var generation = 0
+    private var ready = false
+    private var blocked = false
+    private var pendingSearch = false
     private var pendingPlay: String? = null
+    private var shown = false
+    private var toolbarHeight = 0
 
     @SuppressLint("SetJavaScriptEnabled")
-    fun initialize() {
+    fun initialize(loadHome: Boolean = true) {
         val view = WebView(activity).apply {
-            setBackgroundColor(Color.rgb(9, 15, 25))
+            id = R.id.site_webview
+            setBackgroundColor(Color.rgb(9,15,25))
             isFocusable = true
             isFocusableInTouchMode = true
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                databaseEnabled = true
                 allowFileAccess = false
                 allowContentAccess = false
+                @Suppress("DEPRECATION")
                 allowFileAccessFromFileURLs = false
+                @Suppress("DEPRECATION")
                 allowUniversalAccessFromFileURLs = false
                 setSupportMultipleWindows(false)
                 javaScriptCanOpenWindowsAutomatically = false
@@ -95,178 +72,181 @@ class SitePageBridge(
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 safeBrowsingEnabled = true
+                cacheMode = WebSettings.LOAD_DEFAULT
             }
             CookieManager.getInstance().setAcceptCookie(true)
-            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-            webViewClient = object: WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                    request.isForMainFrame && !allowed(request.url.toString())
+            // Embedded original players may use their own session; cookies stay inside WebView.
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this,true)
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    val reject = request.isForMainFrame && !allowed(request.url.toString())
+                    if (reject) onProblem("Externer Seitenwechsel blockiert")
+                    return reject
+                }
                 @Suppress("DEPRECATION")
-                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean = !allowed(url)
+                override fun shouldOverrideUrlLoading(view: WebView, url: String) = !allowed(url)
                 override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                    generation++
+                    handler.removeCallbacksAndMessages(null)
+                    ready = false
+                    blocked = false
                     if (active) onLocation(url)
                 }
                 override fun onPageFinished(view: WebView, url: String) {
-                    if (!active || !allowed(url)) return
+                    if (!active || !allowed(url) || view.url != url) return
+                    val version = generation
                     CookieManager.getInstance().flush()
-                    onLocation(url)
-                    installTvFocusStyling()
-                    if (pendingPlay == url && allowedTitle(url)) {
-                        pendingPlay = null
-                        view.postDelayed({ if(active && web===view && view.url==url) pressSitePlay() }, 1400)
+                    view.evaluateJavascript(script) {
+                        if (!isCurrent(version,url)) return@evaluateJavascript
+                        ready = true
+                        extract()
+                        if (pendingSearch) performSearch()
+                        if (pendingPlay == url) findPlayLink(url)
+                        listOf(700L,2000L,5000L).forEach { delay ->
+                            handler.postDelayed({if(isCurrent(version,url) && resumed && !blocked) extract()},delay)
+                        }
                     }
-                    view.postDelayed({ if(active && web===view && view.url==url) extract() }, 650)
-                    view.postDelayed({ if(active && web===view && view.url==url) extract() }, 2700)
                 }
                 override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                    if (request.isForMainFrame && active) onProblem(error.description.toString())
+                    if (request.isForMainFrame && active) {
+                        ready = false
+                        onProblem("Website-Ladefehler (${error.errorCode}). Neu laden oder Website öffnen.")
+                    }
+                }
+                override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                    if (request.isForMainFrame && active) onProblem("Website antwortet mit HTTP ${response.statusCode}")
                 }
                 override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    generation++
+                    ready = false
+                    handler.removeCallbacksAndMessages(null)
+                    exitFullscreen()
                     if (view === web) web = null
                     (view.parent as? ViewGroup)?.removeView(view)
                     view.destroy()
-                    if (active) onProblem("Website-Prozess beendet. App erneut öffnen.")
+                    if (active) onProblem("WebView wurde beendet. Mit Neu laden wieder öffnen.")
                     return true
                 }
             }
-            webChromeClient = object: WebChromeClient() {
-                override fun onShowCustomView(view: View, custom: CustomViewCallback) {
-                    if (full != null) { custom.onCustomViewHidden(); return }
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+                    if (full != null) {callback.onCustomViewHidden();return}
                     full = view
-                    callback = custom
-                    host.addView(view, FrameLayout.LayoutParams(-1,-1))
+                    fullCallback = callback
+                    host.addView(view,FrameLayout.LayoutParams(-1,-1))
+                    activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    onFullscreen(true)
                     view.requestFocus()
                 }
-                override fun onHideCustomView() { exitFullscreen() }
+                override fun onHideCustomView() {exitFullscreen()}
             }
         }
         web = view
-        host.addView(view, 0, FrameLayout.LayoutParams(-1, -1))
+        host.addView(view,0,FrameLayout.LayoutParams(-1,-1))
         view.visibility = View.INVISIBLE
-        view.loadUrl(ORIGIN + "/")
+        if (loadHome) view.loadUrl(ORIGIN + "/")
     }
-
-    /** One TV remote click triggers the original visible Play button; site controls the session. */
-    fun playTitle(url:String) {
-        if (!allowedTitle(url)) { onProblem("Filmseite nicht zugelassen"); return }
-        pendingPlay=url
-        navigate(url)
-    }
-    private fun pressSitePlay() {
-        web?.evaluateJavascript("""
-(function(){
- var items=Array.from(document.querySelectorAll('button,a,[role=button]'));
- var play=items.find(function(el) {
-   var name=((el.getAttribute('aria-label')||'')+' '+(el.textContent||'')).trim();
-   return /^play$|^▶?\s*play$/i.test(name) && el.getClientRects().length>0;
- });
- if(play){play.click();return 'clicked'}
- return 'manual';
-})()
-        """.trimIndent()) { res ->
-            if(res.contains("manual")) onProblem("Bitte Play auf der Titelseite auswählen")
-        }
-    }
-
+    private fun isCurrent(version: Int,url: String) = active && generation == version && web?.url == url
     fun navigate(path: String) {
-        val url = if (path.startsWith("https://")) path else ORIGIN + path
-        if (!allowed(url)) { onProblem("Externer Seitenwechsel blockiert"); return }
-        onCatalog(emptyList())
+        val url = if(path.startsWith("https://")) path else ORIGIN + path
+        if (!allowed(url)) {onProblem("Externer Seitenwechsel blockiert");return}
+        exitFullscreen()
+        generation++
+        ready = false
+        if (web == null) {initialize(false);websiteVisible(shown,toolbarHeight)}
         web?.loadUrl(url)
     }
-    fun current(): String = web?.url ?: ORIGIN
-    fun websiteVisible(show: Boolean, toolbarHeight: Int = 0) {
-        val view = web ?: return
-        val lp = FrameLayout.LayoutParams(-1, -1).apply { topMargin = if(show) toolbarHeight else 0 }
-        view.layoutParams = lp
-        view.visibility = if(show) View.VISIBLE else View.INVISIBLE
-        if(show) view.requestFocus() else extract()
+    fun playTitle(url: String) {
+        if (!allowedTitle(url)) {onProblem("Ungültige Titelseite");return}
+        pendingPlay = url
+        navigate(url)
     }
-    /** Opens only the site's own search UI; results stay tied to the website account. */
-    fun focusSiteSearch() {
-        web?.postDelayed({
-            web?.evaluateJavascript("""
-(function(){
- var q=document.querySelector('input[placeholder*="Search"],input[placeholder*="search"]');
- if(!q){
-  var buttons=Array.from(document.querySelectorAll('button,[role=button]'));
-  var trigger=buttons.find(function(e){
-   var label=((e.getAttribute('aria-label')||'')+' '+(e.textContent||'')).trim();
-   return /search/i.test(label) && e.getClientRects().length>0;
-  });
-  if(trigger)trigger.click();
-  q=document.querySelector('input[placeholder*="Search"],input[placeholder*="search"]');
- }
- if(q){q.focus();return 'focused'}
- return 'unavailable';
-})()
-            """.trimIndent()) { result ->
-                if (result.contains("unavailable")) onProblem("Bitte die Website-Suche über das Suchsymbol öffnen")
-            }
-        },1200)
-    }
-
-    fun refresh() { web?.reload() }
-    fun onPause() { web?.onPause(); CookieManager.getInstance().flush() }
-    fun onResume() { web?.onResume() }
-    fun back(): Boolean {
-        if (full != null) { exitFullscreen(); return true }
-        return false
-    }
-    fun canGoBack() = web?.canGoBack() == true
-    fun goBack() { web?.goBack() }
-    fun dispose() {
-        active=false
-        exitFullscreen()
-        val current=web
-        web=null
-        if (current!=null) {
-            current.stopLoading()
-            (current.parent as? ViewGroup)?.removeView(current)
-            current.destroy()
+    private fun findPlayLink(url: String) {
+        val version = generation
+        web?.evaluateJavascript("window.__projectorTV && window.__projectorTV.playLink()") { raw ->
+            if (!isCurrent(version,url)) return@evaluateJavascript
+            pendingPlay = null
+            val target = runCatching {JSONTokener(raw).nextValue() as? String}.getOrNull()
+            if (target != null && allowed(target) && Regex("^/(movie|tv)/play/.*").matches(URI(target).path)) navigate(target)
+            else onProblem("Play oder die gewünschte Episode auf der Website auswählen")
         }
-        CookieManager.getInstance().flush()
     }
-
-    private fun exitFullscreen() {
-        val shown=full ?: return
-        full=null
-        (shown.parent as? ViewGroup)?.removeView(shown)
-        val done=callback
-        callback=null
-        done?.onCustomViewHidden()
+    fun current() = web?.url ?: ORIGIN + "/"
+    fun websiteVisible(show: Boolean,toolbarHeight: Int = 0) {
+        shown = show
+        this.toolbarHeight = toolbarHeight
+        web?.apply {
+            layoutParams = FrameLayout.LayoutParams(-1,-1).apply {topMargin = if(show) toolbarHeight else 0}
+            visibility = if(show) View.VISIBLE else View.INVISIBLE
+        }
     }
-
+    fun focusContent() {
+        web?.requestFocus()
+        if (ready && !blocked) web?.evaluateJavascript("window.__projectorTV && window.__projectorTV.focusContent()",null)
+    }
+    fun focusSiteSearch() {pendingSearch = true;if(ready) performSearch()}
+    private fun performSearch() {
+        if (!pendingSearch || blocked) return
+        pendingSearch = false
+        val version = generation
+        val url = current()
+        web?.requestFocus()
+        web?.evaluateJavascript("window.__projectorTV && window.__projectorTV.openSearch()") { raw ->
+            if(isCurrent(version,url) && raw != "\"focused\"") onProblem("Suchsymbol auf der Website auswählen")
+        }
+    }
     fun extract() {
-        web?.evaluateJavascript(CATALOG_JS) { raw ->
-            if (!active) return@evaluateJavascript
+        if (!ready || !active || !allowed(current())) return
+        val version = generation
+        val url = current()
+        web?.evaluateJavascript("window.__projectorTV && window.__projectorTV.snapshot()") { raw ->
+            if (!isCurrent(version,url)) return@evaluateJavascript
             try {
-                val json=JSONTokener(raw).nextValue() as? String ?: return@evaluateJavascript
-                val values=JSONArray(json)
-                val items=ArrayList<SiteTitle>()
-                for (i in 0 until values.length()) {
-                    val obj=values.optJSONObject(i) ?: continue
-                    val url=obj.optString("url")
-                    if (!allowedTitle(url)) continue
-                    val title=obj.optString("title").trim()
-                    if(title.isBlank())continue
-                    items.add(SiteTitle(title,url,obj.optString("poster").takeIf { it.startsWith("https://") },
-                        obj.optString("kind")))
+                val encoded = JSONTokener(raw).nextValue() as? String ?: return@evaluateJavascript
+                val snapshot = JSONObject(encoded)
+                if (snapshot.optString("url") != url) return@evaluateJavascript
+                if (snapshot.optBoolean("blocked")) {
+                    if(!blocked) {blocked=true;pendingPlay=null;pendingSearch=false;onBlocked()}
+                    return@evaluateJavascript
                 }
-                onCatalog(items)
-            } catch(e:Exception) { onProblem("Katalogdaten konnten nicht gelesen werden") }
+                val values = snapshot.optJSONArray("titles") ?: return@evaluateJavascript
+                val titles = ArrayList<SiteTitle>()
+                for(i in 0 until minOf(values.length(),160)) {
+                    val obj = values.optJSONObject(i) ?: continue
+                    val link = obj.optString("url")
+                    val title = obj.optString("title").trim().take(150)
+                    if(!allowedTitle(link) || title.isEmpty()) continue
+                    titles.add(SiteTitle(title,link,BingeBangParser.posterUrlFromRaw(obj.optString("poster")),
+                        if(URI(link).path.startsWith("/movie/")) "Film" else "Serie",obj.optString("group").take(100)))
+                }
+                onCatalog(url,titles)
+            } catch(_: Exception) {onProblem("Katalogdaten konnten nicht gelesen werden")}
         }
     }
-
-    /** Change only focus appearance; do not hide forms, tabs or original player controls. */
-    private fun installTvFocusStyling() {
-        web?.evaluateJavascript("""
-(function(){
- if(document.getElementById('projector-tv-focus'))return;
- var s=document.createElement('style');s.id='projector-tv-focus';
- s.textContent=':is(a,button,input,select,[role=button],[tabindex]):focus-visible{outline:4px solid #5be9f7!important;outline-offset:3px!important;box-shadow:0 0 0 5px #05111e!important}';
- document.head.appendChild(s);
-})()
-        """.trimIndent(), null)
+    fun refresh() {
+        if(web == null) {initialize();websiteVisible(shown,toolbarHeight);return}
+        web?.reload()
+    }
+    fun onPause() {resumed=false;handler.removeCallbacksAndMessages(null);web?.onPause();CookieManager.getInstance().flush()}
+    fun onResume() {resumed=true;web?.onResume();if(ready) extract()}
+    fun back(): Boolean {if(full != null) {exitFullscreen();return true};return false}
+    fun canGoBack() = web?.canGoBack() == true
+    fun goBack() {generation++;pendingPlay=null;pendingSearch=false;web?.goBack()}
+    private fun exitFullscreen() {
+        val shownView = full ?: return
+        full = null
+        (shownView.parent as? ViewGroup)?.removeView(shownView)
+        val callback = fullCallback
+        fullCallback = null
+        activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        callback?.onCustomViewHidden()
+        onFullscreen(false)
+        web?.requestFocus()
+    }
+    fun dispose() {
+        active=false;generation++;handler.removeCallbacksAndMessages(null);exitFullscreen()
+        web?.let {view -> view.stopLoading();(view.parent as? ViewGroup)?.removeView(view);view.destroy()}
+        web=null
+        CookieManager.getInstance().flush()
     }
 }
