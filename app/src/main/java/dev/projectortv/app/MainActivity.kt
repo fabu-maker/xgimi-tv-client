@@ -36,7 +36,7 @@ import java.util.concurrent.Executors
  * hidden player API. BingeBang is accessed solely for publicly visible catalogue pages.
  */
 class MainActivity : Activity() {
-    private val background = Color.rgb(9, 15, 25)
+    private val surfaceColor = Color.rgb(9, 15, 25)
     private val panel = Color.rgb(23, 34, 50)
     private val focused = Color.rgb(100, 203, 218)
     private val foreground = Color.rgb(240, 247, 250)
@@ -59,7 +59,7 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
-        root = FrameLayout(this).apply { setBackgroundColor(background) }
+        root = FrameLayout(this).apply { setBackgroundColor(surfaceColor) }
         setContentView(root)
         showShelf(CatalogShelf.HOME)
     }
@@ -87,7 +87,7 @@ class MainActivity : Activity() {
         setPadding(dp(16), dp(10), dp(16), dp(10))
         setOnFocusChangeListener { view, hasFocus ->
             view.background = bg(hasFocus)
-            (view as Button).setTextColor(if (hasFocus) background else foreground)
+            (view as Button).setTextColor(if (hasFocus) surfaceColor else foreground)
             view.elevation = if (hasFocus) dp(8).toFloat() else 0f
         }
         setOnClickListener { click() }
@@ -106,7 +106,7 @@ class MainActivity : Activity() {
         root.removeAllViews()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(background)
+            setBackgroundColor(surfaceColor)
         }
         root.addView(outer, FrameLayout.LayoutParams(-1, -1))
         val rail = LinearLayout(this).apply {
