@@ -26,8 +26,8 @@ android {
         applicationId = "dev.projectortv.client"
         minSdk = 28
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0-account-preview"
+        versionCode = 5
+        versionName = "0.5.0-tv-facade"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
