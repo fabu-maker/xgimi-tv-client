@@ -1,0 +1,28 @@
+name: Short TV facade install URL
+on:
+  push:
+    branches: [tv-facade]
+    paths:
+      - '.github/workflows/short-v05.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  short:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create and verify direct APK short link
+        shell: bash
+        env:
+          APK: https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.5.0-tv-facade/projektor-tv-facade.apk
+        run: |
+          set -euo pipefail
+          curl -fsSL 'https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.5.0-tv-facade' | python3 -c 'import json,sys; a=json.load(sys.stdin)["assets"]; assert any(x["name"]=="projektor-tv-facade.apk" and x["state"]=="uploaded" for x in a)'
+          short="$(curl -fsSL --get --data-urlencode 'format=simple' --data-urlencode 'shorturl=xgimi05' --data-urlencode "url=${APK}" 'https://urlvanish.com/api/shorten')"
+          case "${short}" in https://urlvanish.com/*) ;; *) echo "Bad short URL: ${short}"; exit 1;; esac
+          expanded="$(curl -fsSL --get --data-urlencode 'format=simple' --data-urlencode "url=${short}" 'https://urlvanish.com/api/expand')"
+          test "${expanded}" = "${APK}"
+          loc="$(curl -fsS -D - -o /dev/null --max-time 20 "${short}" | tr -d '\r' | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//' || true)"
+          echo "Link: ${short}, target: ${loc}"
+          test "${loc}" = "${APK}"
+          echo "::notice title=Short APK URL::${short}"
