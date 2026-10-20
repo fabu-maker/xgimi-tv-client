@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
 /** Genuine native Media3 player. Source eligibility must be verified independently. */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class NativeVideo(private val activity: Activity) {
     private var exo: ExoPlayer? = null
     private var view: PlayerView? = null
