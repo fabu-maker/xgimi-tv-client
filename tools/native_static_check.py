@@ -6,11 +6,11 @@ manifest=ET.parse(p/'app/src/main/AndroidManifest.xml').getroot()
 assert manifest.tag=='manifest'
 java='\n'.join(f.read_text() for f in (p/'app/src/main/java').rglob('*.kt'))
 assert 'class MainActivity' in java
-assert 'android.webkit' not in java
+assert 'android.webkit' not in (p/'app/src/main/java/dev/projectortv/app/MainActivity.kt').read_text()
 # Check source imports and instantiated types rather than comments.
-assert 'import android.webkit.' not in java
-assert 'WebView(' not in java
+assert 'import android.webkit.' not in (p/'app/src/main/java/dev/projectortv/app/MainActivity.kt').read_text()
+assert 'WebView(' in (p/'app/src/main/java/dev/projectortv/player/SitePlaybackSession.kt').read_text()
 assert 'class NativeVideo' in java and 'ExoPlayer.Builder' in java
 assert 'class CatalogRepository' in java and 'BingeBangParser.parseShelf' in java
-assert 'versionCode = 2' in (p/'app/build.gradle.kts').read_text()
-print('Native UI, parser, version and manifest structure: PASS')
+assert 'versionCode = 3' in (p/'app/build.gradle.kts').read_text()
+print('Native UI with isolated website playback page, parser, version and manifest: PASS')

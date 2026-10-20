@@ -28,12 +28,13 @@ import dev.projectortv.catalog.MediaKind
 import dev.projectortv.catalog.NativeLibrary
 import dev.projectortv.player.NativeVideo
 import dev.projectortv.player.PlaybackPolicy
+import dev.projectortv.player.SitePlaybackSession
 import dev.projectortv.tv.PosterLoader
 import java.util.concurrent.Executors
 
 /**
- * Native Android-TV browsing application. NO WebView, HTML UI, JavaScript injection or
- * hidden player API. BingeBang is accessed solely for publicly visible catalogue pages.
+ * Native Android-TV catalogue and controls. Embedded browser technology is confined
+ * to the on-demand video player, for which the site does not expose a supported native API.
  */
 class MainActivity : Activity() {
     private val surfaceColor = Color.rgb(9, 15, 25)
@@ -52,6 +53,8 @@ class MainActivity : Activity() {
     private var screen = "home"
     private var serial = 0
     private var isDemoPlaying = false
+    private var sitePlayer: SitePlaybackSession? = null
+    private var returnToItem: MediaItem? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,6 +106,8 @@ class MainActivity : Activity() {
         screen = id
         serial++
         if (isDemoPlaying) closeDemo(savePosition = true)
+        sitePlayer?.close()
+        sitePlayer = null
         root.removeAllViews()
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -168,7 +173,7 @@ class MainActivity : Activity() {
                     } else {
                         mediaRow(feed, shelf.title, all.take(80))
                     }
-                    feed.addView(label("Die Quelle kann Titel jederzeit ändern. Abspielen von BingeBang-Inhalten ist noch nicht freigegeben.", 14f, muted))
+                    feed.addView(label("Wiedergabe nutzt bei BingeBang-Titeln den Original-Webplayer; die Katalogoberfläche bleibt nativ.", 14f, muted))
                 }.onFailure { e ->
                     feed.addView(label("Katalog konnte nicht geladen werden: ${e.message}", 18f))
                     feed.addView(button("Erneut versuchen") { showShelf(shelf, true) })
@@ -238,12 +243,9 @@ class MainActivity : Activity() {
             showDetail(item)
         }
         actions.addView(favourite, lp(dp(250), dp(58)).apply { rightMargin = dp(12) })
-        actions.addView(button("Wiedergabe-Status") {
-            AlertDialog.Builder(this)
-                .setTitle("Wiedergabe noch nicht verfügbar")
-                .setMessage("Für BingeBang liegen keine dokumentierten, freigegebenen nativen Stream-Adressen vor. Es werden keine Schutzmechanismen oder Drittanbieter-Zugriffe umgangen.")
-                .setPositiveButton("OK", null).show()
-        }, lp(dp(235), dp(58)))
+        actions.addView(button("▶ Film / Episode abspielen") {
+            openSitePlayer(item)
+        }, lp(dp(260), dp(58)))
         feed.addView(actions, lp().apply { bottomMargin = dp(20) })
         val info = label(item.overview ?: "Filminformationen werden geladen …", 18f)
         feed.addView(info)
@@ -258,6 +260,31 @@ class MainActivity : Activity() {
             }
         }
         favourite.post { if (serial == current) favourite.requestFocus() }
+    }
+
+    private fun openSitePlayer(item: MediaItem) {
+        if (!BingeBangParser.isDetailUrl(item.url)) {
+            AlertDialog.Builder(this).setMessage("Ungültige Filmadresse").setPositiveButton("OK", null).show()
+            return
+        }
+        if (isDemoPlaying) closeDemo(true)
+        sitePlayer?.close()
+        sitePlayer = null
+        screen = "watch"
+        serial++
+        returnToItem = item
+        val session = SitePlaybackSession(this, root, item.url) {
+            closeSitePlayer()
+            showDetail(item)
+        }
+        sitePlayer = session
+        session.start()
+    }
+
+    private fun closeSitePlayer() {
+        sitePlayer?.close()
+        sitePlayer = null
+        returnToItem = null
     }
 
     private fun showSearch() {
@@ -313,8 +340,8 @@ class MainActivity : Activity() {
 
     private fun showInfo() {
         val feed = begin("info", "Informationen", "Native Vorschau · Version 0.2.0")
-        feed.addView(label("Diese App verwendet keine WebView. Filme und Serien werden als native TV-Karten dargestellt.", 18f))
-        feed.addView(label("BingeBang liefert derzeit nur Katalogdaten. Native Wiedergabe der Website ist nicht integriert.", 18f, muted),
+        feed.addView(label("Die gesamte Navigation und der Katalog bestehen aus nativen TV-Komponenten.", 18f))
+        feed.addView(label("Bei BingeBang-Filmen öffnet sich ausschließlich für die Wiedergabe der Original-Webplayer. Das Verhalten hängt von WebView, Anbieter-Servern und verfügbaren Filmen ab.", 18f, muted),
             lp().apply { topMargin = dp(16); bottomMargin = dp(16) })
         feed.addView(button("Native Videowiedergabe mit Testvideo prüfen") { startDemo() }, lp(dp(480), dp(62)))
         feed.addView(label("Testvideo: Big Buck Bunny (Blender Foundation), öffentliches Demo-Material.", 14f, muted),
@@ -340,6 +367,12 @@ class MainActivity : Activity() {
     @Deprecated("Legacy Android TV back handling")
     override fun onBackPressed() {
         when {
+            sitePlayer != null && sitePlayer?.back() == true -> Unit
+            sitePlayer != null -> {
+                val item = returnToItem
+                closeSitePlayer()
+                if (item != null) showDetail(item) else showShelf(CatalogShelf.HOME)
+            }
             isDemoPlaying -> { closeDemo(true); showInfo() }
             screen.startsWith("detail") -> showShelf(CatalogShelf.HOME)
             screen != "shelf:HOME" -> showShelf(CatalogShelf.HOME)
@@ -347,10 +380,16 @@ class MainActivity : Activity() {
         }
     }
     override fun onPause() {
+        sitePlayer?.onPause()
         if (isDemoPlaying) { state.setDemoPosition(player.position()); player.pause() }
         super.onPause()
     }
+    override fun onResume() {
+        super.onResume()
+        sitePlayer?.onResume()
+    }
     override fun onDestroy() {
+        closeSitePlayer()
         closeDemo(true)
         pool.shutdownNow()
         super.onDestroy()
