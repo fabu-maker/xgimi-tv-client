@@ -48,7 +48,7 @@ class TvFacadeActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.decorView.systemUiVisibility =
             (View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
-        root = FrameLayout(this).apply { setBackgroundColor(background) }
+        root = FrameLayout(this).apply { setBackgroundColor(this@TvFacadeActivity.background) }
         setContentView(root)
         page = SitePageBridge(this,root,
             { titles -> if (nativeMode && titles.isNotEmpty()) { currentTitles=titles; renderTitles() } },
@@ -95,7 +95,7 @@ class TvFacadeActivity : Activity() {
         page.websiteVisible(false)
         siteToolbar?.visibility=View.GONE
         if (!::native.isInitialized) {
-            native = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setBackgroundColor(background) }
+            native = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setBackgroundColor(this@TvFacadeActivity.background) }
             root.addView(native, FrameLayout.LayoutParams(-1,-1))
         }
         native.visibility=View.VISIBLE
