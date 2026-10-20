@@ -2,7 +2,7 @@ name: Sign and publish native Android TV preview
 
 on:
   push:
-    branches: [native-v2]
+    branches: [tv-facade]
     paths:
       - 'app/**'
       - 'build.gradle.kts'
@@ -25,7 +25,7 @@ jobs:
     timeout-minutes: 40
     env:
       XGIMI_SIGNING_PASSPHRASE: ${{ secrets.XGIMI_SIGNING_PASSPHRASE }}
-      RELEASE_TAG: v0.4.0-account-preview
+      RELEASE_TAG: v0.5.0-tv-facade
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -66,8 +66,8 @@ jobs:
           APK='app/build/outputs/apk/release/app-release.apk'
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
           test -s "$APK"
-          cp "$APK" projektor-tv-account.apk
-          sha256sum projektor-tv-account.apk > projektor-tv-account.apk.sha256
+          cp "$APK" projektor-tv-facade.apk
+          sha256sum projektor-tv-facade.apk > projektor-tv-facade.apk.sha256
       - name: Publish immutable first-release APK on GitHub HTTPS
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,8 +79,8 @@ jobs:
             exit 1
           fi
           gh release create "$RELEASE_TAG" \
-            projektor-tv-account.apk#projektor-tv-account.apk \
-            projektor-tv-account.apk.sha256#projektor-tv-account.apk.sha256 \
+            projektor-tv-facade.apk#projektor-tv-facade.apk \
+            projektor-tv-facade.apk.sha256#projektor-tv-facade.apk.sha256 \
             --target "$GITHUB_SHA" \
-            --title "Projektor TV 0.4.0 – native interface with first-party account access" \
-            --notes "Android TV build with native catalogue interface, first-party BingeBang login/registration/My Space web session and isolated original-site player. No app-side credential capture. Account sync into native lists, player success on Xgimi and third-party integration rights are not verified."
+            --title "Projektor TV 0.5.0 – TV facade over BingeBang website" \
+            --notes "Android TV UI using original BingeBang account, favorites, search and player in one persistent first-party WebView session; native card rails are derived from website DOM. Compatibility on Xgimi and real playback not yet verified."
