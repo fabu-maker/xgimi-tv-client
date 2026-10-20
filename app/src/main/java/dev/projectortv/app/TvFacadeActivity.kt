@@ -210,7 +210,7 @@ class TvFacadeActivity : Activity() {
         area.addView(txt(item.name,32f,true),lp().apply{bottomMargin=d(14)})
         area.addView(txt(item.kind+" · BingeBang",17f,false,muted),lp().apply{bottomMargin=d(22)})
         val actions=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL}
-        actions.addView(btn("▶ Ansehen") { page.navigate(item.url); showWebsite() },lp(d(350),d(66)).apply{bottomMargin=d(12)})
+        actions.addView(btn("▶ Ansehen") { page.playTitle(item.url); showWebsite() },lp(d(350),d(66)).apply{bottomMargin=d(12)})
         actions.addView(btn("Website-Funktionen: Merkliste, Folgen und Details") {
             page.navigate(item.url); showWebsite()
         },lp(d(500),d(66)).apply{bottomMargin=d(12)})
