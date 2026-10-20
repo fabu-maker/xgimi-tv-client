@@ -3,7 +3,7 @@ package dev.projectortv.account
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Color
-import android.net.Uri
+import java.net.URI
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -15,6 +15,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebSettings
 import android.webkit.WebStorage
+import android.app.AlertDialog
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -26,11 +27,11 @@ object AccountRoutes {
     const val SIGN_UP = "https://bingebang.st/signup"
     const val RESET = "https://bingebang.st/reset"
     fun allowedMainFrame(url: String?): Boolean = try {
-        val uri = Uri.parse(url)
-        uri.scheme?.equals("https", true) == true &&
-            uri.host?.equals("bingebang.st", true) == true &&
+        val uri = URI(url ?: "")
+        uri.scheme.equals("https", true) &&
+            uri.host.equals("bingebang.st", true) &&
             (uri.port == -1 || uri.port == 443) &&
-            uri.userInfo == null
+            uri.userInfo == null && uri.toString().length < 2048
     } catch (_: Exception) { false }
 }
 
@@ -78,6 +79,15 @@ class AccountSession(
         control("Registrieren", 1.2f) { web?.loadUrl(AccountRoutes.SIGN_UP) }
         control("Passwort vergessen", 1.4f) { web?.loadUrl(AccountRoutes.RESET) }
         control("↻", .45f) { web?.reload() }
+        control("Abmelden", 1.0f) {
+            AlertDialog.Builder(activity)
+                .setTitle("Anmeldesitzung auf diesem Gerät löschen?")
+                .setMessage("Dies entfernt die lokale Anmeldung. Andere Geräte bleiben angemeldet.")
+                .setNegativeButton("Abbrechen", null)
+                .setPositiveButton("Abmelden") { _, _ ->
+                    logOutBrowserSession { web?.loadUrl(AccountRoutes.HOME) }
+                }.show()
+        }
         control("Seite bedienen", 1.2f) { web?.requestFocus() }
         layout.addView(bar)
         title = TextView(activity).apply {
