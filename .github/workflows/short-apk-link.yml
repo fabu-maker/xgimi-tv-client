@@ -1,0 +1,33 @@
+name: Create short APK download link
+on:
+  push:
+    paths:
+      - .github/workflows/short-apk-link.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shorten:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify release and shorten download URL
+        env:
+          APK_URL: https://github.com/fabu-maker/xgimi-tv-client/releases/download/v0.1.0/projektor-tv.apk
+        run: |
+          set -euo pipefail
+          echo "Checking release asset..."
+          curl -fsSL --retry 2 "https://api.github.com/repos/fabu-maker/xgimi-tv-client/releases/tags/v0.1.0" | python3 -c 'import sys,json; r=json.load(sys.stdin); assert any(a["name"] == "projektor-tv.apk" and a["state"] == "uploaded" for a in r["assets"])'
+          echo "Creating short HTTPS link..."
+          short="$(curl -fsSL --retry 2 --get --data-urlencode 'format=simple' --data-urlencode "url=${APK_URL}" 'https://is.gd/create.php')"
+          echo "API response: ${short}"
+          case "${short}" in
+            https://is.gd/*) ;;
+            *) echo "Unexpected shortening result" >&2; exit 1;;
+          esac
+          location="$(curl -fsSI --max-time 20 "${short}" | tr -d '\r' | grep -i '^location:' | head -1 | sed -E 's/^[Ll]ocation:[[:space:]]*//')"
+          echo "Redirect target: ${location}"
+          if [ "${location}" != "${APK_URL}" ]; then
+            echo "Unexpected redirect target" >&2; exit 1
+          fi
+          echo "SHORT_APK_URL=${short}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "::notice title=Short APK link::${short}"
